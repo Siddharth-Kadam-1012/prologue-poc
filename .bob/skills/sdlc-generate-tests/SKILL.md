@@ -48,7 +48,8 @@ For each handler / business rule:
 ### Step 3 — Integration tests
 
 For each API operation in the OpenAPI contract:
-- Use `WebApplicationFactory<TProgram>` with a real (test) database.
+- Use `WebApplicationFactory<TProgram>` with the in-memory **stub data** store (see `.bob/instructions/dotnet.md` § Stub data).
+  Replace/reseed the store per test from the deterministic seed data; do not add a database, Testcontainers or SQLite.
 - Test: valid request → correct status and response shape.
 - Test: invalid input → `400` with `HttpValidationProblemDetails`.
 - Test: unauthenticated → `401`.
@@ -72,7 +73,8 @@ Reference: `dotnet run scripts/sdlc/sdlc.cs -- drift` for the comparison logic.
 From `specs/<NNN>/ux/user-flows.md`, for each user flow:
 - Write a test that follows the exact steps defined.
 - Use `getByRole`, `getByLabel`, `getByText` locators.
-- Set up test data, authenticate, run the flow, assert the outcome, clean up.
+- Rely on the seeded stub data for test data; reset it between tests. Assert against seed values, not hard-coded literals that drift.
+- Authenticate, run the flow, assert the outcome.
 - Add to the existing Playwright config — do not create a second runner.
 
 Template:
@@ -81,10 +83,9 @@ import { test, expect } from '@playwright/test';
 
 // AC-XXX-NNN: <acceptance criterion text>
 test('<AC description>', async ({ page }) => {
-  // Arrange: create test data via API or DB helper
+  // Arrange: reset/reseed the stub data store
   // Act: navigate and interact
-  // Assert: verify visible outcome and side effects
-  // Cleanup: delete created data
+  // Assert: verify visible outcome and resulting stub-store state
 });
 ```
 
@@ -110,6 +111,11 @@ For each AC now covered:
 - Add a row to the map in `specs/<NNN>/traceability.md` with the test file path.
 - Run `dotnet run scripts/sdlc/sdlc.cs -- gate <spec-dir> traceability` and report the real exit code.
   Do not write "covered"/"verified" for an AC that no test references — the gate rejects it.
+
+## Stub data limits
+
+- Tests run against stub data, so they do **not** prove durability, transactions, concurrency across processes or migrations.
+  List these as "not verified (stub data)" in `test-plan.md`; do not claim persistence coverage.
 
 ## Stop conditions
 

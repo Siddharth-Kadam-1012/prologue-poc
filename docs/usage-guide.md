@@ -141,7 +141,8 @@ Breaking API changes show up as `drift` exit 2; record the decision under `decis
 2. Replace `@<team-lead>` / `@<tech-leads>` placeholders in `CODEOWNERS`.
 3. Enable branch protection: required review (code owners) and required status checks from `sdlc-gates.yml`.
 4. Decide the open ADRs: `docs/decisions/adr-001-openapi-policy.md`, `adr-002-frontend.md`; create ADRs for
-   database and authentication when chosen.
+   authentication when chosen. The data layer is **stub data** for now (see `.bob/instructions/dotnet.md`);
+   a real database/ORM needs its own ADR.
 5. Add the .NET solution; then `build`/`unit_tests` gates become real.
 
 ## Troubleshooting

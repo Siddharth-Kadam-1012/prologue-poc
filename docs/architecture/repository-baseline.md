@@ -39,7 +39,7 @@ Record each decision as an ADR in `docs/decisions/`.
 | Runtime / framework | Undecided | — |
 | Target framework | Undecided | — |
 | Frontend | Undecided | docs/decisions/adr-002-frontend.md |
-| Database / ORM | Undecided | ADR to be created when decided |
+| Database / ORM | None - stub data (in-memory, synthetic seed data) for the current phase | ADR required before adding a real database |
 | Authentication | Undecided | ADR to be created when decided |
 | Component library | Undecided | docs/decisions/adr-002-frontend.md |
 

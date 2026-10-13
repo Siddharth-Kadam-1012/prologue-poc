@@ -2,7 +2,7 @@
 name: sdlc-implement-slice
 description: >-
   Use when the user wants to implement a single vertical slice task from
-  specs/<NNN>/tasks.md — implements UI, endpoint, business logic, persistence,
+  specs/<NNN>/tasks.md — implements UI, endpoint, business logic, stub-data store,
   error handling, and co-located tests, following the approved contracts.
 ---
 
@@ -60,6 +60,14 @@ Rules:
 - Handlers contain business logic only (no `HttpContext` dependency).
 - Validate at the boundary; return `ProblemDetails` for errors.
 - Use the existing DI registration pattern.
+- **Data access uses stub data, not a database.** Follow `.bob/instructions/dotnet.md` § Stub data:
+  - Define one small feature-specific store interface (e.g. `IOrderStore`) in the feature folder.
+  - Implement it as a thread-safe in-memory stub seeded from deterministic, synthetic seed data
+    (e.g. `StubData/OrderSeed.cs`) and register it in DI.
+  - The stub must follow the OpenAPI contract exactly (validation, `404`, `409`, etc.).
+  - Seed data must cover every UX state (empty, populated, error, boundary).
+  - Do **not** add a database, ORM, migrations, connection strings or a generic `IRepository<T>`.
+  - Do not describe persistence as implemented or verified; say "stub data only".
 - Implement exactly what the approved contract specifies — do not add extra fields or operations.
 - Do not modify unrelated files.
 
@@ -67,7 +75,8 @@ Rules:
 
 For each acceptance criterion covered by this task:
 - Unit test for the handler's business logic.
-- Integration test via `WebApplicationFactory` covering the full HTTP pipeline.
+- Integration test via `WebApplicationFactory` covering the full HTTP pipeline, running against the seeded stub store
+  (fresh store per test so tests are order-independent).
 - Put the AC ID (e.g. `AC-ORD-001`) in the test name or a comment. `sdlc.cs traceability`
   derives coverage from these references in `tests/`; marking a row covered in
   `traceability.md` without a referencing test is rejected.

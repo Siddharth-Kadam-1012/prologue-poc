@@ -95,6 +95,9 @@ Extend the SpecKit spec template (`.specify/templates/spec-template.md`) with th
 ...
 
 ## Dependencies and constraints
+- Data layer: stub data only in this phase (no database/ORM). Any PRD requirement needing durability,
+  transactions, migrations or external integrations is recorded here and as a `[QUESTION]`/deferred item,
+  not silently dropped.
 ...
 
 ## Risk register

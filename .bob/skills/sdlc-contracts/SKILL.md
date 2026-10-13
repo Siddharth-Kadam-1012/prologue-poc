@@ -53,6 +53,10 @@ Every operation **must** include:
 
 All schema components go under `#/components/schemas/`.
 
+**Stub data note:** the API is served from stub data in this phase. Include in the contract a realistic `x-example`
+for each success response that matches the deterministic seed data planned for the slice, and keep identifiers
+opaque so a real store can replace the stub without a contract change. Do not add fields only to suit stub storage.
+
 ### Step 3 — Document contract source-of-truth policy
 
 If `docs/decisions/adr-001-openapi-policy.md` does not exist, create it choosing one:

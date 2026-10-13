@@ -85,6 +85,10 @@ screens:
     states: [loading, empty, populated, error, forbidden]   # all five are required
 ```
 
+**Stub data note:** screens are populated from stub data in this phase. For each screen's states, note in
+`user-flows.md` which stub seed scenario produces it (e.g. `empty` -> empty seed set, `error` -> a seed
+record or trigger value that causes the failure). This keeps every state reproducible without a database.
+
 Rules enforced by the gate: at least one screen, a non-placeholder `id`, all five
 states per screen, and every component `source` is `existing` or `gap`.
 

@@ -133,6 +133,8 @@ Reviewer: Quality Reviewer agent
 | AC ID | Status |
 |---|---|
 
+Data layer: stub data only. Durability, transactions, migrations: **not verified (stub data)**.
+
 ## Recommendation
 
 PASS / CONDITIONAL PASS (conditions: ...) / FAIL (blockers: ...)

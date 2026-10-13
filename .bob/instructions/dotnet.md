@@ -35,7 +35,19 @@
 - Read configuration via `IOptions<T>` bound from `appsettings.json` / environment variables.
 - **Never hard-code secrets.** Use environment variables, user-secrets (`dotnet user-secrets`), or a secrets manager.
 
-## Persistence
+## Stub data (current phase)
+- The project uses **stub data only**. Do not add a database, ORM, migrations or connection strings.
+- Each slice accesses data through one small, feature-specific store interface (e.g. `IOrderStore`) placed in the feature folder.
+  This is the only permitted seam; do not add generic `IRepository<T>`.
+- The stub implementation is in-memory (thread-safe) and seeded from deterministic seed data kept in the feature folder
+  (e.g. `src/Features/<Domain>/StubData/`). Registered in DI so it can be replaced later without touching endpoints or handlers.
+- Seed data must be **synthetic**: no real names, emails, IDs or other personal data. Use fixed IDs/timestamps so tests are repeatable.
+- Seed data must cover every state the UX contract defines (empty, populated, error-triggering, boundary values).
+- Stub behaviour must honour the OpenAPI contract exactly (status codes, validation, conflicts, not-found).
+- Never claim persistence was verified. Durability, transactions and migrations are **not covered** by stub data; record them as
+  "not verified (stub data)" in the validation report.
+
+## Persistence (when a real store is later approved)
 - Use the ORM/database already present in the project. Do not introduce a second one without a documented decision.
 - Make transaction boundaries explicit. Avoid implicit ambient transactions.
 - Do not add unnecessary repository wrappers around every single ORM call.

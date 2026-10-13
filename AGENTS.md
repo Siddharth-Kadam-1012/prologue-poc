@@ -4,7 +4,10 @@
 No application code exists yet. Until a project is added, treat every item below as
 **policy / intent, not a detected fact**. Re-inspect the repository before relying on any of them.
 - **Target runtime (intent):** .NET 10 / ASP.NET Core 10 for new projects. Never retarget an existing project silently.
-- **Frontend, database/ORM, auth, component library:** undecided — record an explicit decision (ADR) before choosing.
+- **Data layer: stub data (current phase).** There is no database or ORM. Slices read and write through a
+  feature-specific store interface backed by deterministic, synthetic in-memory stub data. See `.bob/instructions/dotnet.md` § Stub data.
+  Introducing a real database/ORM requires an ADR and human approval.
+- **Frontend, auth, component library:** undecided — record an explicit decision (ADR) before choosing.
 - **Test runner (intent):** xUnit unless NUnit is already present. Browser tests: Playwright.
 - **SpecKit:** 1.0.12 with the IBM Bob integration (PowerShell scripts, skills in `.bob/skills/`).
 - **Stage/check definitions:** the `Cfg` class in `scripts/sdlc/sdlc.cs` (single source of truth; no separate config file)

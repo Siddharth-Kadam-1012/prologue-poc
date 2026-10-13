@@ -32,9 +32,10 @@ Use the existing project structure; do not create a second test project that dup
 
 ## Integration tests
 - Use `WebApplicationFactory<TProgram>` with the real DI container.
-- Use a real test database (Testcontainers preferred) or `SQLite` in-memory if approved and sufficient.
+- While the project uses stub data (see `dotnet.md` § Stub data), run against the in-memory stub store seeded with the deterministic seed data. Do not introduce Testcontainers or SQLite.
+- Once a real database is approved by ADR: use a real test database (Testcontainers preferred) or `SQLite` in-memory if approved and sufficient.
 - Authenticate requests using the app's actual auth middleware — not by bypassing it.
-- Clean up data after each test. Use a unique test-database or per-test transaction rollback.
+- Reset state after each test: with stub data, create a fresh store per test (or reseed); with a real database, use a unique test-database or per-test transaction rollback.
 
 ## Contract tests
 - Run `scripts/validate-openapi.ps1` to check schema validity.

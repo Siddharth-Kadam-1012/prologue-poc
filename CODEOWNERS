@@ -1,0 +1,30 @@
+# CODEOWNERS - autonomous SDLC files require human review before merge.
+# PLACEHOLDERS: replace @<team-lead> / @<tech-leads> with real GitHub users or teams.
+# Until you do, GitHub treats these entries as invalid and enforces no ownership.
+
+# Root constitution and Bob root instructions
+AGENTS.md                               @<team-lead>
+.specify/memory/constitution.md        @<team-lead>
+
+# Bob instructions, modes and skills - changes affect all agent behaviour
+.bob/instructions/                     @<team-lead>
+.bob/custom_modes.yaml                 @<team-lead>
+.bob/skills/                           @<tech-leads>
+
+# SpecKit workflow and templates
+.specify/workflows/                    @<tech-leads>
+.specify/extensions.yml                @<tech-leads>
+.specify/templates/                    @<tech-leads>
+
+# Scripts - all deterministic gate scripts require review
+scripts/                               @<tech-leads>
+
+# CI - changes must be reviewed
+.github/workflows/                     @<tech-leads>
+
+# Workflow state: approvals live here. Require a human reviewer so an agent-authored PR
+# cannot merge its own stage approvals (sdlc.cs verify-state also hash-checks them).
+specs/*/status.yaml                    @<team-lead>
+
+# Docs and ADRs
+docs/decisions/                        @<team-lead>

@@ -1,0 +1,9 @@
+{
+  "ai": "bob",
+  "ai_skills": true,
+  "feature_numbering": "sequential",
+  "here": true,
+  "integration": "bob",
+  "script": "ps",
+  "speckit_version": "1.0.12"
+}

@@ -1,0 +1,15 @@
+{
+  "version": "1.0.12",
+  "integration_state_schema": 1,
+  "installed_integrations": [
+    "bob"
+  ],
+  "integration_settings": {
+    "bob": {
+      "script": "ps",
+      "invoke_separator": "-"
+    }
+  },
+  "integration": "bob",
+  "default_integration": "bob"
+}

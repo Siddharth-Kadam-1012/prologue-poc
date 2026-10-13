@@ -1,0 +1,200 @@
+schema_version: "1.0"
+workflow:
+  id: "sdlc-full"
+  name: "Autonomous SDLC - PRD to PR"
+  version: "2.0.0"
+  author: "repository-sdlc-blueprint"
+  description: >-
+    Specification -> clarification -> plan -> contract + UX -> tasks -> implementation
+    -> verification. Deterministic checks run as shell steps (sdlc.cs) and fail the run
+    on a non-zero exit. Human gates pause the run; stage approval itself is recorded by a
+    human with `dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> <stage> <name>`.
+
+requires:
+  speckit_version: ">=0.8.5"
+  integrations:
+    any:
+      - "bob"
+
+inputs:
+  prd:
+    type: string
+    required: true
+    prompt: "PRD path or inline feature description"
+  integration:
+    type: string
+    default: "auto"
+    prompt: "Integration to use ('auto' uses the project's initialized integration)"
+
+# Shell steps call sdlc.cs without a spec dir: it resolves the current feature from
+# SPECIFY_FEATURE_DIRECTORY or .specify/feature.json (written by /speckit-specify).
+steps:
+  - id: tool-selftest
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- selftest
+
+  # -- 1. Specification -------------------------------------------------------
+  - id: specify
+    command: speckit.specify
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.prd }}"
+
+  - id: init-state
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- init-feature
+
+  - id: check-spec
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- gate specification
+
+  - id: approve-specification
+    type: gate
+    message: |
+      Specification gate. Review spec.md (stable REQ/AC IDs, testable criteria, scope).
+      To record approval, in a terminal run:
+        dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> specification <your-name>
+      then choose approve here. (approve refuses unless check-spec passed.)
+    options: [approve, reject]
+    on_reject: abort
+
+  # -- 2. Clarification -------------------------------------------------------
+  - id: clarify
+    command: speckit.clarify
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.prd }}"
+
+  - id: check-clarification
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- gate clarification
+
+  - id: approve-clarification
+    type: gate
+    message: |
+      Clarification gate. All [QUESTION]/[NEEDS CLARIFICATION] markers are resolved
+      (check-clarification exited 0). Record approval:
+        dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> clarification <your-name>
+    options: [approve, reject]
+    on_reject: abort
+
+  # -- 3. Architecture --------------------------------------------------------
+  - id: plan
+    command: speckit.plan
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.prd }}"
+
+  - id: approve-architecture
+    type: gate
+    message: |
+      Architecture gate. Review plan.md: vertical slices, dependency directions, ADRs for
+      material decisions, no unapproved frameworks. Record approval:
+        dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> architecture <your-name>
+    options: [approve, reject]
+    on_reject: abort
+
+  # -- 4. Contract + UX -------------------------------------------------------
+  - id: contract-design
+    type: prompt
+    integration: "{{ inputs.integration }}"
+    prompt: "Run the sdlc-contracts skill for the current feature: design specs/<NNN>/contracts/openapi.yaml from the approved spec, then run its validation."
+
+  - id: check-contract
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- gate contract
+
+  - id: approve-api-contract
+    type: gate
+    message: |
+      Contract gate (check-contract exited 0). Confirm security declarations, error responses
+      and that any breaking change is intended. Record approval:
+        dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> api_contract <your-name>
+    options: [approve, reject]
+    on_reject: abort
+
+  - id: ux-design
+    type: prompt
+    integration: "{{ inputs.integration }}"
+    prompt: "Run the sdlc-ux skill for the current feature: produce specs/<NNN>/ux/user-flows.md, component-map.yaml and grayscale wireframes. API-only feature? Say so instead of inventing screens."
+
+  - id: check-ux
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- gate ux
+
+  - id: approve-ux
+    type: gate
+    message: |
+      UX gate (check-ux exited 0). For an API-only feature skip instead:
+        dotnet run scripts/sdlc/sdlc.cs -- set-stage <spec-dir> ux skipped
+      otherwise record approval:
+        dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> ux <your-name>
+    options: [approve, reject]
+    on_reject: abort
+
+  # -- 5. Tasks ---------------------------------------------------------------
+  - id: tasks
+    command: speckit.tasks
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.prd }}"
+
+  - id: check-state-pre-implementation
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- verify-state
+
+  - id: approve-task-decomposition
+    type: gate
+    message: |
+      Tasks gate. Tasks are small, reference REQ/AC IDs, have explicit dependencies. Record approval:
+        dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> task_decomposition <your-name>
+      Then mark implementation started:
+        dotnet run scripts/sdlc/sdlc.cs -- set-stage <spec-dir> implementation in_progress
+    options: [approve, reject]
+    on_reject: abort
+
+  # -- 6. Implementation ------------------------------------------------------
+  - id: implement
+    command: speckit.implement
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.prd }}"
+
+  - id: gates-after-implementation
+    type: prompt
+    integration: "{{ inputs.integration }}"
+    prompt: "Run the sdlc-run-gates skill for the current feature and report real exit codes; report anything not run as 'not run'."
+
+  - id: check-traceability
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- gate traceability
+
+  - id: check-secrets
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- secrets .
+
+  # -- 7. Verification --------------------------------------------------------
+  - id: converge
+    command: speckit.converge
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.prd }}"
+
+  - id: report
+    type: prompt
+    integration: "{{ inputs.integration }}"
+    prompt: "Run the sdlc-converge-feature skill and write specs/<NNN>/validation-report.md from real command output only."
+
+  - id: check-state-final
+    type: shell
+    run: dotnet run scripts/sdlc/sdlc.cs -- verify-state
+
+  - id: approve-verification
+    type: gate
+    message: |
+      Review and merge gate. Read validation-report.md. High-risk items (auth, destructive
+      migrations, breaking API, secrets) need explicit sign-off. Record approval:
+        dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> verification <your-name>
+      (refused unless spec, traceability, build and unit_tests have recorded passing runs.)
+    options: [approve, reject]
+    on_reject: abort

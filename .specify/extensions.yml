@@ -1,0 +1,115 @@
+# .specify/extensions.yml
+# SpecKit extension hooks for the autonomous SDLC workflow.
+#
+# Hooks fire before/after SpecKit commands.  They surface prompts to the agent
+# at the right point in the workflow.
+#
+# Hook fields:
+#   extension   – hook group identifier (arbitrary)
+#   command     – the Bob skill or SpecKit command to invoke (/skill-name or speckit.xxx)
+#   description – shown to the agent alongside the prompt
+#   optional    – false => agent MUST run the hook before continuing
+#   enabled     – set to false to suppress without deleting
+#   prompt      – literal instruction surfaced to the agent
+
+hooks:
+
+  # ── Before specify: optionally run PRD analysis first ─────────────────────
+  before_specify:
+    - extension: sdlc-prd
+      command: sdlc-analyze-prd
+      description: >-
+        Analyze a PRD or feature description and produce a structured
+        spec with stable requirement IDs before the SpecKit specify step.
+      optional: true
+      enabled: true
+      prompt: >-
+        If you have a PRD file or detailed feature description, run
+        /sdlc-analyze-prd first to produce a structured spec, then proceed
+        with /speckit-specify to fill in the spec-template sections.
+
+  # ── After specify: initialize the feature's state files ───────────────────
+  after_specify:
+    - extension: sdlc-state
+      command: sdlc-init-feature
+      description: >-
+        Create specs/<NNN>/status.yaml and specs/<NNN>/traceability.md
+        by running `dotnet run scripts/sdlc/sdlc.cs -- init-feature <spec-dir>`.
+      optional: false
+      enabled: true
+      prompt: >-
+        Run the following command to initialize the feature state files:
+          dotnet run scripts/sdlc/sdlc.cs -- init-feature <spec-dir>
+        Where <spec-dir> is the directory just created by /speckit-specify.
+        The command must exit 0 before you continue.
+        Do not create status.yaml or traceability.md by hand.
+
+  # ── After plan: design the API contract and UX artifacts ──────────────────
+  after_plan:
+    - extension: sdlc-contract
+      command: sdlc-contracts
+      description: >-
+        Design and validate the OpenAPI contract for the feature based on
+        the approved plan and spec.
+      optional: true
+      enabled: true
+      prompt: >-
+        The plan is ready. Run /sdlc-contracts to design the OpenAPI contract
+        before generating tasks.
+
+    - extension: sdlc-ux
+      command: sdlc-ux
+      description: >-
+        Define UX flows, generate grayscale wireframes, and build the
+        component map for the feature.
+      optional: true
+      enabled: true
+      prompt: >-
+        The plan is ready. Run /sdlc-ux to produce UX deliverables in
+        parallel with the API contract design.
+
+  # ── After tasks: run the pre-implementation gate ──────────────────────────
+  after_tasks:
+    - extension: sdlc-gates
+      command: sdlc-run-gates
+      description: >-
+        Run the pre-implementation gate checks (spec, contract, traceability,
+        workflow state) and confirm all exit 0 before implementation begins.
+      optional: false
+      enabled: true
+      prompt: >-
+        Before starting /speckit-implement, run:
+          dotnet run scripts/sdlc/sdlc.cs -- gate <spec-dir> state
+          dotnet run scripts/sdlc/sdlc.cs -- gate <spec-dir> specification
+          dotnet run scripts/sdlc/sdlc.cs -- gate <spec-dir> contract
+        Report exit codes.  Do NOT proceed if any command exits non-zero.
+
+  # ── After implement: run build and test gate ──────────────────────────────
+  after_implement:
+    - extension: sdlc-build
+      command: sdlc-run-gates
+      description: >-
+        Run the build gate (build, test, traceability) and record evidence
+        before advancing to the next task or convergence.
+      optional: false
+      enabled: true
+      prompt: >-
+        Run the following and record real exit codes in status.yaml using
+        `dotnet run scripts/sdlc/sdlc.cs -- evidence <spec-dir> <check> <cmd>`:
+          evidence <spec-dir> build       dotnet build --no-restore -warnaserror
+          evidence <spec-dir> unit_tests  dotnet test --no-build
+        Do NOT proceed if any command exits non-zero. Fix the failure or record
+        it as a blocking issue in specs/<NNN>/validation-report.md.
+
+  # ── After converge: run full validation suite ─────────────────────────────
+  after_converge:
+    - extension: sdlc-verify
+      command: sdlc-converge-feature
+      description: >-
+        Run the full SDLC convergence skill: all gates, security review,
+        traceability check, and PR report generation.
+      optional: false
+      enabled: true
+      prompt: >-
+        Run /sdlc-converge-feature to produce specs/<NNN>/validation-report.md.
+        Do NOT create the PR until the convergence skill reports PASS or CONDITIONAL PASS.

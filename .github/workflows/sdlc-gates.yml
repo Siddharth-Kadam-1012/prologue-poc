@@ -1,0 +1,130 @@
+name: Autonomous SDLC Quality Gates
+
+# NOTE: this workflow has not been executed on GitHub Actions yet (the repository is not a git
+# repo at the time of writing). Every `dotnet run scripts/sdlc/sdlc.cs -- ...` command below
+# was exercised locally; the workflow wiring itself is untested until the first CI run.
+
+on:
+  push:
+    branches: [main, develop, "feature/**"]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  # job-level `if: hashFiles(...)` is not allowed by GitHub Actions, so each job always runs
+  # and its step skips explicitly (printing why) when there is nothing to check yet.
+
+  selftest:
+    name: SDLC tool self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+      - run: dotnet run scripts/sdlc/sdlc.cs -- selftest
+
+  secrets:
+    name: Secrets scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+      - run: |
+          dotnet run scripts/sdlc/sdlc.cs -- secrets .
+          exit $LASTEXITCODE
+
+  feature-gates:
+    name: Feature gates (spec, contract, UX, traceability, state)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+      - name: Run gates for every feature under specs/
+        run: |
+          if (-not (Test-Path specs)) { Write-Host "No specs/ directory yet - nothing to check."; exit 0 }
+          $failures = 0
+          foreach ($dir in (Get-ChildItem specs -Directory)) {
+            Write-Host "=== $($dir.Name) ==="
+            $d = $dir.FullName
+            if (Test-Path "$d/status.yaml") {
+              dotnet run scripts/sdlc/sdlc.cs -- verify-state $d;  if ($LASTEXITCODE -ne 0) { $failures++ }
+            } else { Write-Host "no status.yaml: state check skipped" }
+            if (Test-Path "$d/spec.md") {
+              dotnet run scripts/sdlc/sdlc.cs -- spec $d;          if ($LASTEXITCODE -ne 0) { $failures++ }
+              dotnet run scripts/sdlc/sdlc.cs -- traceability $d;  if ($LASTEXITCODE -ne 0) { $failures++ }
+            } else { Write-Host "no spec.md: spec/traceability skipped" }
+            if (Test-Path "$d/contracts/openapi.yaml") {
+              dotnet run scripts/sdlc/sdlc.cs -- openapi "$d/contracts/openapi.yaml"; if ($LASTEXITCODE -ne 0) { $failures++ }
+            }
+            if (Test-Path "$d/ux/component-map.yaml") {
+              dotnet run scripts/sdlc/sdlc.cs -- gate $d ux;       if ($LASTEXITCODE -ne 0) { $failures++ }
+            }
+          }
+          if ($failures -gt 0) { Write-Error "$failures gate check(s) failed"; exit 1 }
+
+  contract-drift:
+    name: Contract drift (vs base branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+      - name: Compare each contract with the base-branch version
+        run: |
+          $base = "${{ github.base_ref }}"
+          if (-not $base) { $base = "main" }
+          if (-not (Test-Path specs)) { Write-Host "No specs/ directory yet - nothing to compare."; exit 0 }
+          $failures = 0
+          foreach ($c in (Get-ChildItem specs -Recurse -Filter openapi.yaml)) {
+            $rel = (Resolve-Path -Relative $c.FullName).TrimStart('.', '/', '\') -replace '\\', '/'
+            $old = New-TemporaryFile
+            git show "origin/${base}:$rel" 2>$null | Set-Content -Path $old.FullName
+            if ($LASTEXITCODE -ne 0 -or -not (Get-Item $old.FullName).Length) {
+              Write-Host "$rel : no baseline on origin/$base (new contract) - NOT compared"
+              continue
+            }
+            dotnet run scripts/sdlc/sdlc.cs -- drift $c.FullName "--old=$($old.FullName)"
+            if ($LASTEXITCODE -eq 2) { Write-Warning "BREAKING change in $rel - requires recorded human approval"; $failures++ }
+            elseif ($LASTEXITCODE -ne 0) { $failures++ }
+            Remove-Item $old.FullName -ErrorAction SilentlyContinue
+          }
+          if ($failures -gt 0) { exit 1 }
+
+  dotnet-build-test:
+    name: .NET build, format, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+      - name: Build and test (skipped until a solution/project exists)
+        run: |
+          $proj = Get-ChildItem -Recurse -Include *.sln,*.slnx,*.csproj -File |
+                  Where-Object { $_.FullName -notmatch '[\\/](obj|bin|node_modules)[\\/]' }
+          if (-not $proj) { Write-Host "No .NET solution or project in the repository yet - NOT RUN."; exit 0 }
+          dotnet restore;                              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build --no-restore -warnaserror;      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet format --verify-no-changes;           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test --no-build --logger "trx;LogFileName=TestResults.trx"; exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: "**/*.trx"
+          if-no-files-found: ignore

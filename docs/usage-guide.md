@@ -38,9 +38,9 @@ Stages, in order: `specification`, `clarification`, `architecture`, `api_contrac
 | Create state files | agent or human | `sdlc.cs init-feature <dir>` |
 | Run a gate / record evidence | agent or human | `sdlc.cs gate <dir> <gate>` / `sdlc.cs evidence <dir> <check> <cmd...>` |
 | Mark stage in progress/failed/skipped | agent or human | `sdlc.cs set-stage <dir> <stage> <status>` |
-| **Approve a stage** | **human only** | `sdlc.cs approve <dir> <stage> <name>` |
+| **Approve a stage** | **you, by an explicit yes** | in chat: agent records it via `sdlc.cs approve-chat` (your reply is stored); or `sdlc.cs approve <dir> <stage> <name>` in your own terminal |
 
-`approve` refuses when stdin is redirected (agents/CI), asks you to retype your name, and refuses unless:
+`approve` (terminal) refuses when stdin is redirected (agents/CI) and asks you to retype your name. `approve-chat` skips that prompt (the chat yes is the approval) but enforces the same rules. Both refuse unless:
 earlier stages are approved/skipped, required artifacts exist, and the stage's required checks have a recorded
 **passing** run. It stores a SHA-256 of each artifact. If an artifact changes afterwards, `verify-state` reports
 the approval as **STALE** and fails until you re-run the gate and re-approve. Hand-editing `status.yaml`
@@ -53,7 +53,36 @@ ux -> `ux`; verification -> `spec`, `traceability`, `build`, `unit_tests` (+ `co
 > and the status file consistently. Real enforcement comes from CODEOWNERS on `specs/*/status.yaml` plus branch
 > protection (see "One-time setup").
 
-## Run a feature (step by step in Bob)
+## Run a feature - one command (recommended)
+
+In Bob, in **Agent** mode, paste:
+
+```
+/sdlc-autopilot <your PRD text or path to the PRD file>
+```
+
+Bob runs **every command itself** (gates, evidence, approval recording): you never type a shell command.
+In return it asks for your explicit yes **before every step**:
+
+- After finishing a piece of work it shows the result and asks "Approve and continue?" (a button prompt).
+- After you answer questions (for example Q-001..Q-005), it applies your answers, re-runs the gate and asks again.
+  Answering is not approving.
+- After you ask a question it answers and asks again. A question is not approving.
+- Only a clear yes moves it forward. When you say yes to a stage, Bob records it with
+  `sdlc.cs approve-chat` and stores your reply word for word in the approval ledger.
+- It also stops on its own for an unresolved critical PRD question, a breaking API change or other high-risk item,
+  a gate that still fails after 3 fixes, or a need for a real database.
+
+Status and resume: start /sdlc-autopilot (or just say "resume" or "status") in any new chat. Bob first runs
+`sdlc.cs status` and `verify-state` and reports: stages done and who approved, the first open stage, last result of
+each check ("not run" where applicable), open tasks, and any integrity problem. It then asks before resuming at the
+first stage that is not approved. You can also read the report yourself: `dotnet run scripts/sdlc/sdlc.cs -- status`.
+
+Chat approval is weaker than a terminal approval: the tool cannot prove you typed the "yes", only record what Bob says
+you said. For stricter control set the environment variable `SDLC_REQUIRE_TERMINAL_APPROVAL=1`: `approve-chat` is then
+refused and you approve with `sdlc.cs approve` in a terminal. This skill has **not been run in Bob yet**; expect to adjust it after a first trial.
+
+## Run a feature (manual, step by step in Bob)
 
 ```
 /speckit-specify       <feature description>   # creates specs/NNN-name/spec.md (+ .specify/feature.json)
@@ -69,7 +98,7 @@ ux -> `ux`; verification -> `spec`, `traceability`, `build`, `unit_tests` (+ `co
 /sdlc-converge-feature                         # validation-report.md
 ```
 
-After each stage's gate passes, **you** approve it in a terminal, e.g.:
+To approve a stage by hand (instead of through `/sdlc-autopilot`), after its gate passes run in your own terminal:
 
 ```powershell
 dotnet run scripts/sdlc/sdlc.cs -- gate specs/001-orders specification
@@ -80,7 +109,7 @@ Omit `<dir>` to use the current feature (`SPECIFY_FEATURE_DIRECTORY`, else `.spe
 Modes (`sdlc-orchestrator`, `prd-analyst`, `contract-engineer`, `ux-engineer`, `slice-implementer`,
 `test-engineer`, `quality-reviewer`) are selected from Bob's mode picker.
 
-## Run it as a SpecKit workflow (optional, not yet exercised end to end)
+## Run it as a SpecKit workflow (does NOT work here)
 
 ```powershell
 specify workflow info .specify/workflows/sdlc-full/workflow.yml   # validates structure (27 steps)
@@ -88,9 +117,10 @@ specify workflow run .specify/workflows/sdlc-full/workflow.yml -i prd="<feature 
 specify workflow resume <run-id>                                    # after each human gate
 ```
 
-Shell steps run `sdlc.cs` and stop the run on a non-zero exit. Gate steps pause; approve in a terminal as above,
-then resume. `command`/`prompt` steps need the Bob integration to be callable from the CLI - **not verified here**.
-If it is not, use the step-by-step flow.
+Tested: the first `command` step fails with `integration 'bob' CLI not found or not installed` because no Bob CLI
+is on this machine's PATH, so `specify workflow run` cannot drive Bob headlessly. The workflow validates (27 steps)
+and the shell steps are sound, but it only becomes usable if a Bob command-line executable is installed. Until then
+use `/sdlc-autopilot`.
 
 ## Resuming
 
@@ -153,6 +183,7 @@ Breaking API changes show up as `drift` exit 2; record the decision under `decis
 | "No spec directory given and none could be resolved" | Pass `<dir>`, or run `/speckit-specify` first |
 | `verify-state`: STALE approval | Artifact changed after approval: re-run its gate, `set-stage ... in_progress`, re-approve |
 | `approve`: "check ... has no recorded passing run" | Run the gate/evidence command first |
-| `approve`: "stdin is redirected" | Run it yourself in an interactive terminal |
+| `approve`: "stdin is redirected" | Expected for agents; use `approve-chat` after your yes in chat, or run `approve` in your own terminal |
+| `approve-chat`: "Chat approval is disabled" | `SDLC_REQUIRE_TERMINAL_APPROVAL=1` is set; approve in a terminal with `approve` |
 | PowerShell blocks `.ps1` | `powershell -ExecutionPolicy Bypass -File <script>` |
 | Skill not listed in Bob | Name must match `^[a-z0-9]+(-[a-z0-9]+)*$`; restart Bob |

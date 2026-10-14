@@ -45,9 +45,9 @@ contract        NOT RUN     -     no contracts/openapi.yaml yet
 build           NOT RUN     -     no .NET projects in repository
 ```
 
-Then state which stage can be requested for human approval next. A stage can only be approved
-by the maintainer running `dotnet run scripts/sdlc/sdlc.cs -- approve <d> <stage> <name>`
-interactively; the tool refuses unless the required passing runs are recorded.
+Then state which stage can be put to the user for approval next. Ask the user in chat; only after their explicit yes,
+record it with `dotnet run scripts/sdlc/sdlc.cs -- approve-chat <d> <stage> "<name>" "<verbatim reply>"`.
+The tool refuses unless the required passing runs are recorded.
 
 ## Stop conditions
 

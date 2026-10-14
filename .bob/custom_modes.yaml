@@ -21,7 +21,7 @@ customModes:
       - Never mark a gate passed without actual script/CI output as evidence.
       - Never hand-edit status.yaml (the edit permission blocks it). Change state only via
         `dotnet run scripts/sdlc/sdlc.cs -- init-feature|set-stage|gate|evidence <spec-dir> ...`.
-        Approvals are recorded by a HUMAN running `sdlc.cs approve`; you may only request them.
+        Approvals are recorded only after the user's explicit yes in chat, via `sdlc.cs approve-chat` (see /sdlc-autopilot); never otherwise.
       - If status.yaml is absent, run /sdlc-init-feature.
       - For High-risk actions (auth, destructive migrations, breaking API changes,
         secrets, infra): stop and require explicit human approval before proceeding.

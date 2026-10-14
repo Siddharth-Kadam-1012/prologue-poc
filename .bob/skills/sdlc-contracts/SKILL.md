@@ -21,8 +21,8 @@ You are acting as the **Contract Engineer** for this repository.
 
 1. Read `AGENTS.md` and `.bob/instructions/api-contracts.md`.
 2. Run `dotnet run scripts/sdlc/sdlc.cs -- verify-state <spec-dir>` (must exit 0) and confirm
-   `stages.specification.status` is `approved` in `status.yaml`. If not, STOP: the
-   maintainer must approve the specification first.
+   `stages.specification.status` is `approved` in `status.yaml`. If not, STOP and tell the user the
+   specification needs their approval first (record it with `approve-chat` after their explicit yes).
 3. Check for an existing `specs/<NNN>/contracts/openapi.yaml`. If one exists,
    treat it as the current approved contract; compare your proposal against it.
 

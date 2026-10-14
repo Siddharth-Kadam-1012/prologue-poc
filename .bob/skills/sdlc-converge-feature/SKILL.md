@@ -148,8 +148,9 @@ PASS / CONDITIONAL PASS (conditions: ...) / FAIL (blockers: ...)
 ### Step 9 — State
 
 Do not edit `status.yaml`. The commands above already recorded their runs.
-Tell the maintainer the verdict; if PASS they run (interactively):
-`dotnet run scripts/sdlc/sdlc.cs -- approve <spec-dir> verification <their-name>`
+Tell the user the verdict and ask whether they approve recording the `verification` stage. Only after an explicit yes
+in chat, record it yourself with the user's reply verbatim:
+`dotnet run scripts/sdlc/sdlc.cs -- approve-chat <spec-dir> verification "<user's name>" "<their verbatim reply>"`
 
 ## Stop conditions
 

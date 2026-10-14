@@ -26,7 +26,8 @@ You are acting as the **Slice Implementer** for this repository.
    (this also detects stale approvals). Then read `specs/<NNN>/status.yaml` and verify:
    - `specification`, `api_contract` and `task_decomposition` are `approved`
    - `ux` is `approved` or `skipped`
-   If any are not, STOP and ask the maintainer to approve them. You cannot approve stages yourself.
+   If any are not, STOP. Tell the user which stage needs approval, ask for their yes in chat, then record it
+   with `approve-chat` before continuing.
 3. Check `git status` — record any pending unrelated changes and **do not touch them**.
 4. Read the target task from `tasks.md`. Confirm prerequisites are met.
 
@@ -96,8 +97,7 @@ delete failing tests to achieve a green run.
 
 - Never hand-edit `status.yaml`; `evidence` already recorded the run.
 - Mark the task `[X]` in `specs/<NNN>/tasks.md` only if both commands exited 0.
-- If this was the last task, ask the maintainer to run `set-stage ... implementation in_progress`
-  / review; stage approval is a human action.
+- If this was the last task, report it to the user and ask whether to continue with `/sdlc-generate-tests` and verification.
 
 ## Stop conditions
 

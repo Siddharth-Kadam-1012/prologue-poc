@@ -67,6 +67,7 @@ documented in `.bob/skills/`. Use `/speckit-specify` to start a feature.
 
 | Skill | Purpose |
 |---|---|
+| `/sdlc-autopilot` | **One command**: agent runs every command; asks the user for an explicit yes in chat before every step; also status/resume |
 | `/sdlc-init-feature` | Create `status.yaml` + `traceability.md` via `sdlc.cs` |
 | `/sdlc-run-gates` | Run deterministic gates, record real exit codes |
 | `/sdlc-analyze-prd` | PRD → structured requirement set |

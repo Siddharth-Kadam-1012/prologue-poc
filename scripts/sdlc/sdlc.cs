@@ -54,7 +54,9 @@ try
         "init-feature" => CmdInitFeature(rest),
         "set-stage"    => CmdSetStage(rest),
         "approve"      => CmdApprove(rest),
+        "approve-chat" => CmdApproveChat(rest),
         "verify-state" => CmdVerifyState(rest),
+        "status"       => CmdStatus(rest),
         "openapi"      => CmdOpenApi(rest),
         "drift"        => CmdDrift(rest),
         "spec"         => CmdSpec(rest),
@@ -191,7 +193,7 @@ static void SaveStatus(string specDir, StatusDoc s)
 }
 
 static string GrantHash(Grant g) =>
-    Sha($"{g.Stage}|{g.ApprovedBy}|{g.ApprovedAt}|" +
+    Sha($"{g.Stage}|{g.ApprovedBy}|{g.ApprovedAt}|" + (g.Channel == "terminal" ? "" : $"{g.Channel}|{g.Quote}|") +
         string.Join(",", g.Artifacts.OrderBy(k => k.Key, StringComparer.Ordinal).Select(k => $"{k.Key}={k.Value}")));
 
 static int StageIndex(string stage) => Array.IndexOf(Cfg.Stages, stage);
@@ -301,7 +303,20 @@ static int CmdApprove(string[] a)
     return ApproveCore(a[0], a[1], a[2]);
 }
 
-static int ApproveCore(string specDir, string stage, string who)
+// Chat approval: the human's explicit "yes" in the Bob conversation is the approval. The tool cannot verify
+// that the user really said it, so the verbatim reply is stored in the hash-protected ledger for review, and
+// SDLC_REQUIRE_TERMINAL_APPROVAL=1 disables this path (use for teams that want terminal-only approval).
+static int CmdApproveChat(string[] a)
+{
+    if (a.Length < 4) return Fail("Usage: approve-chat <spec-dir> <stage> <approver-name> <user's verbatim approval reply...>");
+    if (Environment.GetEnvironmentVariable("SDLC_REQUIRE_TERMINAL_APPROVAL") == "1")
+        return Fail("Chat approval is disabled (SDLC_REQUIRE_TERMINAL_APPROVAL=1). Use 'approve' in a terminal.");
+    var quote = string.Join(" ", a.Skip(3)).Trim();
+    if (quote.Length < 2) return Fail("The user's verbatim approval reply is required.");
+    return ApproveCore(a[0], a[1], a[2], "chat", quote);
+}
+
+static int ApproveCore(string specDir, string stage, string who, string channel = "terminal", string quote = "")
 {
     Banner($"approve: {stage}");
     if (StageIndex(stage) < 0) return Fail($"Unknown stage '{stage}'.");
@@ -335,7 +350,7 @@ static int ApproveCore(string specDir, string stage, string who)
     }
 
     var now = Now();
-    var grant = new Grant { Stage = stage, ApprovedBy = who, ApprovedAt = now, Artifacts = hashes };
+    var grant = new Grant { Stage = stage, ApprovedBy = who, ApprovedAt = now, Artifacts = hashes, Channel = channel, Quote = quote };
     grant.Hash = GrantHash(grant);
 
     s.HumanApprovals.Granted.RemoveAll(g => g.Stage == stage);
@@ -346,7 +361,7 @@ static int ApproveCore(string specDir, string stage, string who)
     s.NextAction = next < Cfg.Stages.Length ? $"start-{Cfg.Stages[next]}" : "ready-for-pr";
     SaveStatus(specDir, s);
 
-    Ok($"Stage '{stage}' approved by '{who}' at {now}; {hashes.Count} artifact hash(es) recorded");
+    Ok($"Stage '{stage}' approved by '{who}' via {channel} at {now}; {hashes.Count} artifact hash(es) recorded");
     return 0;
 }
 
@@ -394,7 +409,7 @@ static int CmdVerifyState(string[] a)
             if (!File.Exists(full)) { Bad($"{st}: approved artifact missing: {art}"); rc = 1; }
             else if (FileSha(full) != recorded) { Bad($"{st}: STALE approval - {art} changed after approval; re-validate and re-approve"); rc = 1; }
         }
-        if (rc == 0) Ok($"{st}: approved by {grant.ApprovedBy} ({grant.ApprovedAt}), artifacts unchanged");
+        if (rc == 0) Ok($"{st}: approved by {grant.ApprovedBy} via {grant.Channel} ({grant.ApprovedAt}), artifacts unchanged");
     }
 
     // ledger entries without a matching approved stage
@@ -415,6 +430,73 @@ static int CmdVerifyState(string[] a)
 
     Console.WriteLine(rc == 0 ? "\n  PASS: workflow state valid" : "\n  FAIL: workflow state invalid");
     return rc;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// status — read-only progress report (never modifies files). Exit 1 only if status.yaml is unreadable.
+// ─────────────────────────────────────────────────────────────────────────────
+static int CmdStatus(string[] a)
+{
+    string specDir;
+    try { specDir = ResolveSpecDir(a); }
+    catch (ArgumentException ex) { Console.WriteLine($"No active feature: {ex.Message}"); return 1; }
+
+    StatusDoc s;
+    try { s = LoadStatus(specDir); }
+    catch (Exception ex) { Console.WriteLine($"No readable status.yaml in {specDir}: {ex.Message}"); return 1; }
+
+    Banner($"status: {s.Feature}  ({specDir})");
+    Console.WriteLine($"  current stage : {s.CurrentStage}");
+    Console.WriteLine($"  next action   : {s.NextAction}");
+    Console.WriteLine($"  last updated  : {s.LastUpdated}");
+
+    Console.WriteLine("\n  Stages");
+    int done = 0;
+    string? nextOpen = null;
+    foreach (var st in Cfg.Stages)
+    {
+        var r = s.Stages.TryGetValue(st, out var x) ? x : new StageRec();
+        var tail = r.Status == "approved" ? $" by {r.ApprovedBy} ({r.ApprovedAt})" : "";
+        Console.WriteLine($"    {(r.Status is "approved" or "skipped" ? "[x]" : "[ ]")} {st,-20} {r.Status}{tail}");
+        if (r.Status is "approved" or "skipped") done++;
+        else nextOpen ??= st;
+    }
+    Console.WriteLine($"\n  progress      : {done}/{Cfg.Stages.Length} stages approved or skipped");
+    Console.WriteLine($"  first open    : {nextOpen ?? "none - all stages complete"}");
+
+    Console.WriteLine("\n  Checks (last recorded run)");
+    foreach (var c in Cfg.Checks)
+    {
+        var r = s.Validation.TryGetValue(c, out var x) ? x : new RunRec();
+        var shown = r.Status == "pending" ? "not run" : r.Status;
+        Console.WriteLine($"    {c,-18} {shown}{(r.Status == "pending" ? "" : $" (exit {r.ExitCode}, {r.RunAt})")}");
+    }
+
+    var tasks = Path.Combine(specDir, "tasks.md");
+    if (File.Exists(tasks))
+    {
+        var txt = File.ReadAllText(tasks);
+        int open = Regex.Matches(txt, @"^\s*- \[ \]", RegexOptions.Multiline).Count;
+        int closed = Regex.Matches(txt, @"^\s*- \[[xX]\]", RegexOptions.Multiline).Count;
+        Console.WriteLine($"\n  Tasks         : {closed} done, {open} open");
+    }
+
+    var verify = CmdVerifyStateQuiet(specDir);
+    Console.WriteLine($"\n  state integrity: {(verify == 0 ? "OK" : "PROBLEM - run verify-state for details (stale, forged or edited approval)")}");
+
+    if (s.Decisions.Count > 0)
+    {
+        Console.WriteLine("\n  Recent decisions");
+        foreach (var d in s.Decisions.TakeLast(5)) Console.WriteLine($"    - {d}");
+    }
+    return 0;
+}
+
+static int CmdVerifyStateQuiet(string specDir)
+{
+    var realOut = Console.Out;
+    try { Console.SetOut(TextWriter.Null); return CmdVerifyState(new[] { specDir }); }
+    finally { Console.SetOut(realOut); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1012,6 +1094,30 @@ components:
     File.WriteAllText(sf, "db:\n  host: localhost\n");
     Case("secrets: clean file passes", () => CmdSecrets(new[] { sf }) == 0);
 
+    // ── chat approval ──
+    var fdir2 = Path.Combine(tmp, "specs", "002-chat");
+    Directory.CreateDirectory(fdir2);
+    CmdInitFeature(new[] { fdir2 });
+    File.WriteAllText(Path.Combine(fdir2, "spec.md"), original);
+    CmdGate(new[] { fdir2, "specification" });
+    CmdGate(new[] { fdir2, "clarification" });
+    Case("approve-chat: refused without the user's reply", () => CmdApproveChat(new[] { fdir2, "specification", "alice" }) == 1);
+    Case("approve-chat: records channel and verbatim reply", () =>
+        CmdApproveChat(new[] { fdir2, "specification", "alice", "yes,", "approve" }) == 0
+        && LoadStatus(fdir2).HumanApprovals.Granted[0] is { Channel: "chat", Quote: "yes, approve" });
+    Case("verify-state: valid chat approval", () => CmdVerifyState(new[] { fdir2 }) == 0);
+    st = LoadStatus(fdir2); st.HumanApprovals.Granted[0].Quote = "something else"; SaveStatus(fdir2, st);
+    Case("verify-state: edited chat reply is detected", () => CmdVerifyState(new[] { fdir2 }) == 1);
+    st = LoadStatus(fdir2); st.HumanApprovals.Granted[0].Quote = "yes, approve"; SaveStatus(fdir2, st);
+    Case("approve-chat: disabled by SDLC_REQUIRE_TERMINAL_APPROVAL=1", () =>
+    {
+        Environment.SetEnvironmentVariable("SDLC_REQUIRE_TERMINAL_APPROVAL", "1");
+        try { return CmdApproveChat(new[] { fdir2, "clarification", "alice", "yes" }) == 1
+                     && LoadStatus(fdir2).Stages["clarification"].Status != "approved"; }
+        finally { Environment.SetEnvironmentVariable("SDLC_REQUIRE_TERMINAL_APPROVAL", null); }
+    });
+    Case("approve-chat: allowed again once the variable is cleared", () => CmdApproveChat(new[] { fdir2, "clarification", "alice", "yes" }) == 0);
+
     try { Directory.Delete(tmp, true); } catch { /* best effort */ }
 
     Banner("selftest summary");
@@ -1025,7 +1131,9 @@ sdlc.cs - deterministic SDLC gate tooling   (dotnet run scripts/sdlc/sdlc.cs -- 
   init-feature [<spec-dir>]                      Create status.yaml + traceability.md
   set-stage    <spec-dir> <stage> <status>       pending|in_progress|failed|skipped
   approve      <spec-dir> <stage> <who>          HUMAN ONLY (interactive); hashes stage artifacts
+  approve-chat <spec-dir> <stage> <who> <reply>  Record an approval the user gave in chat (stores their verbatim reply)
   verify-state [<spec-dir>]                      Check status, approval ledger, staleness, evidence
+  status       [<spec-dir>]                      Read-only progress report (stages, checks, tasks, integrity)
   openapi      <contract.yaml>                   Validate an OpenAPI 3.x document
   drift        <new.yaml> [--old=<path>]         Breaking-change detection (exit 2 = breaking)
   spec         [<spec-dir>] [--strict-questions] Validate spec.md
@@ -1124,6 +1232,8 @@ class Grant
     public string ApprovedBy { get; set; } = "";
     public string ApprovedAt { get; set; } = "";
     public Dictionary<string, string> Artifacts { get; set; } = new();
+    public string Channel { get; set; } = "terminal";   // terminal | chat
+    public string Quote { get; set; } = "";             // verbatim user reply, chat channel only
     public string Hash { get; set; } = "";
 }
 

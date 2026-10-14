@@ -31,8 +31,8 @@ description: >-
 
 - Do not write or edit `status.yaml` yourself. It is managed by `sdlc.cs`; approvals are
   hash-verified and hand edits are detected as tampering by `verify-state`.
-- Do not approve any stage. Approval is a human action: `sdlc.cs approve` refuses to run
-  non-interactively.
+- Do not approve any stage on your own. A stage is approved only after the user gives an explicit yes in chat;
+  then record it with `sdlc.cs approve-chat` (see `/sdlc-autopilot`). `sdlc.cs approve` is the terminal-only variant.
 
 ## Handoff
 

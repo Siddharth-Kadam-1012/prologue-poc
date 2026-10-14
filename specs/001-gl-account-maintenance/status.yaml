@@ -1,0 +1,164 @@
+# Managed by scripts/sdlc/sdlc.cs. Do not hand-edit: approvals are hash-verified by `verify-state`.
+feature: 001-gl-account-maintenance
+feature_number: 001
+current_stage: implementation
+stages:
+  specification:
+    status: approved
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T17:59:25Z
+    artifact_hashes: &o0
+      spec.md: 5dab0e1343308856c69fdb9fdb85c964cb4d9b5990b1a65a640ffd15177a03bb
+  clarification:
+    status: approved
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T18:08:48Z
+    artifact_hashes: &o1
+      spec.md: e8ec71120221eb60a25233b9d3b55c87e77fbd423c13a9c5fdb623125edd0e5e
+  architecture:
+    status: approved
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T18:12:15Z
+    artifact_hashes: &o2
+      plan.md: 2c7da31549f86fc9f91dce659d06826debc59aa36658af67825e9bcfee1b9cb3
+  api_contract:
+    status: approved
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T18:31:26Z
+    artifact_hashes: &o3
+      contracts/openapi.yaml: 010168fea48d827c8b909e804b0c6d261cd7deb7c596dffa3494def4a2d08312
+  ux:
+    status: approved
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T21:57:04Z
+    artifact_hashes: &o4
+      ux/user-flows.md: 117a7bb09f8f286e471c9b5f5f9965ea1e9b80d6bb5e060f12916352fd14de9d
+      ux/component-map.yaml: 28079f567635e369151c5b3dca8959ec3c6ae53e7d6b64df77997894799b641f
+  task_decomposition:
+    status: approved
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-14T02:13:50Z
+    artifact_hashes: &o5
+      tasks.md: b0d11dece4ef70c8b1df63334a84a52942bccfa72797c77d5a73943d94501388
+  implementation:
+    status: in_progress
+    approved_by: ''
+    approved_at: ''
+    artifact_hashes: {}
+  verification:
+    status: pending
+    approved_by: ''
+    approved_at: ''
+    artifact_hashes: {}
+validation:
+  spec:
+    status: passed
+    command: sdlc.cs spec
+    exit_code: 0
+    run_at: 2026-10-14T02:14:40Z
+    output_sha: ''
+  spec_strict:
+    status: passed
+    command: sdlc.cs spec --strict-questions
+    exit_code: 0
+    run_at: 2026-10-14T02:14:40Z
+    output_sha: ''
+  contract_tests:
+    status: passed
+    command: sdlc.cs openapi
+    exit_code: 0
+    run_at: 2026-10-14T02:14:41Z
+    output_sha: ''
+  contract_drift:
+    status: pending
+    command: ''
+    run_at: ''
+    output_sha: ''
+  ux:
+    status: passed
+    command: sdlc.cs component-map check
+    exit_code: 0
+    run_at: 2026-10-14T02:14:42Z
+    output_sha: ''
+  traceability:
+    status: passed
+    command: sdlc.cs traceability --strict
+    exit_code: 0
+    run_at: 2026-10-14T02:14:42Z
+    output_sha: ''
+  build:
+    status: passed
+    command: powershell -NoProfile -Command dotnet build --no-restore -warnaserror; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm.cmd --prefix src/GlAccounts.Web run build; exit $LASTEXITCODE
+    exit_code: 0
+    run_at: 2026-10-14T02:08:52Z
+    output_sha: f73613bb3371c7ab287c3e75609bda7072f22d120d34ce351bb2d04db550e6fc
+  unit_tests:
+    status: passed
+    command: powershell -NoProfile -Command dotnet test --no-build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm.cmd --prefix src/GlAccounts.Web test -- --no-watch; exit $LASTEXITCODE
+    exit_code: 0
+    run_at: 2026-10-14T02:10:11Z
+    output_sha: 56ea4fc7092b5e28873dd95a24aa094205159834d620c9bf6b2ec773ad762d71
+  integration_tests:
+    status: pending
+    command: ''
+    run_at: ''
+    output_sha: ''
+  playwright:
+    status: passed
+    command: powershell -NoProfile -Command Set-Location src/GlAccounts.Web; npx.cmd playwright test --reporter=line; exit $LASTEXITCODE
+    exit_code: 0
+    run_at: 2026-10-14T02:11:44Z
+    output_sha: da86c32e533deab9e6483dadd8730bac99e95d7ee00a1868b8b4f9ef101e8c46
+  security:
+    status: pending
+    command: ''
+    run_at: ''
+    output_sha: ''
+human_approvals:
+  pending: []
+  granted:
+  - stage: specification
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T17:59:25Z
+    artifacts: *o0
+    channel: chat
+    quote: Approve and continue
+    hash: 174de992154ec29fe39090626d6556f7a5f63e37ae7511eeb4a53c6d19038f23
+  - stage: clarification
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T18:08:48Z
+    artifacts: *o1
+    channel: chat
+    quote: Approve and continue
+    hash: 4ecd785b44beff7b79b084735ceb975d7ba6728605e1c5fcf2b6788b7be9f68f
+  - stage: architecture
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T18:12:15Z
+    artifacts: *o2
+    channel: chat
+    quote: Approve and continue
+    hash: f57e6d58067aa11bcd11b2ad81dc196ef23b91f95f98cece0d9edfdf32c609e4
+  - stage: api_contract
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T18:31:26Z
+    artifacts: *o3
+    channel: chat
+    quote: Approve and continue
+    hash: cd93fd1529ee2d195676a6dce73d74353fb80fc0518cdbfd3bebf533f7354256
+  - stage: ux
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-13T21:57:04Z
+    artifacts: *o4
+    channel: chat
+    quote: Approve and continue
+    hash: bd88b45aeda875158c08288ec1e39e81d9abf9d3558f7b6d7c7751ed3cd33de3
+  - stage: task_decomposition
+    approved_by: Siddharth Kadam
+    approved_at: 2026-10-14T02:13:50Z
+    artifacts: *o5
+    channel: chat
+    quote: approved and continue
+    hash: 987ca4f273fbd2eec3225a09722aa23e254205f35a9995479927700d697057d0
+decisions: []
+next_action: start-implementation
+last_updated: 2026-10-14T02:14:42Z

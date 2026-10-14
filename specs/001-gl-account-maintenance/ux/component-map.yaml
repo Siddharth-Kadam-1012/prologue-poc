@@ -1,0 +1,96 @@
+# Component map for GL Account Maintenance and Inquiry.
+# ADR-002: Angular + Angular Material (src/GlAccounts.Web). `existing` = provided by Angular Material
+# (the repository's chosen component library); `gap` = no Material equivalent, built as a thin wrapper
+# composed from Material and semantic HTML (needs human review).
+# "forbidden" is required by the UX gate but is reserved and unreachable in this phase (spec Q-001: no authorization).
+screens:
+  - id: UX-GLA-001
+    name: Account create / edit form
+    route: /gl/accounts/new, /gl/accounts/{id}/edit
+    api_operations: [API-GLA-001, API-GLA-002, API-GLA-003]
+    requirements: [REQ-GLA-001, REQ-GLA-002, REQ-GLA-003, REQ-GLA-004, REQ-GLA-006, REQ-GLA-007, REQ-GLA-008, REQ-GLA-013, REQ-GLA-014, REQ-GLA-035]
+    components:
+      - {name: PageHeader, source: gap}
+      - {name: TextField, source: existing}
+      - {name: Select, source: existing}
+      - {name: ReadOnlyField, source: gap}
+      - {name: TextArea, source: existing}
+      - {name: FieldError, source: existing}
+      - {name: ErrorSummary, source: gap}
+      - {name: Button, source: existing}
+      - {name: ErrorBanner, source: gap}
+      - {name: SuccessNotice, source: existing}
+    states: [loading, empty, populated, error, forbidden]
+  - id: UX-GLA-002
+    name: Account inquiry
+    route: /gl/accounts/{id}
+    api_operations: [API-GLA-002, API-GLA-008, API-GLA-009]
+    requirements: [REQ-GLA-005, REQ-GLA-013, REQ-GLA-015, REQ-GLA-016, REQ-GLA-017, REQ-GLA-020]
+    components:
+      - {name: PageHeader, source: gap}
+      - {name: DescriptionList, source: gap}
+      - {name: StatusBadge, source: gap}
+      - {name: DataTable, source: existing}
+      - {name: EmptyState, source: gap}
+      - {name: LinkButton, source: existing}
+      - {name: Button, source: existing}
+      - {name: ErrorBanner, source: gap}
+      - {name: SuccessNotice, source: existing}
+    states: [loading, empty, populated, error, forbidden]
+  - id: UX-GLA-003
+    name: Attribute panel
+    route: within /gl/accounts/new and /gl/accounts/{id}/edit
+    api_operations: [API-GLA-005, API-GLA-006, API-GLA-007]
+    requirements: [REQ-GLA-009, REQ-GLA-010, REQ-GLA-011, REQ-GLA-012]
+    components:
+      - {name: EditableTable, source: gap}
+      - {name: Select, source: existing}
+      - {name: FieldError, source: existing}
+      - {name: Button, source: existing}
+      - {name: EmptyState, source: gap}
+    states: [loading, empty, populated, error, forbidden]
+  - id: UX-GLA-004
+    name: Delete confirmation and blocked-delete message
+    route: dialog on /gl/accounts/{id}
+    api_operations: [API-GLA-004]
+    requirements: [REQ-GLA-024, REQ-GLA-025, REQ-GLA-026]
+    components:
+      - {name: AlertDialog, source: existing}
+      - {name: BlockerList, source: gap}
+      - {name: Button, source: existing}
+      - {name: ErrorBanner, source: gap}
+    states: [loading, empty, populated, error, forbidden]
+  - id: UX-GLA-005
+    name: Period summary and transaction list
+    route: /gl/accounts/{id}/period-summary, /gl/accounts/{id}/transactions
+    api_operations: [API-GLA-010, API-GLA-011, API-GLA-012, API-GLA-013, API-GLA-014]
+    requirements: [REQ-GLA-017, REQ-GLA-018, REQ-GLA-019, REQ-GLA-020, REQ-GLA-021, REQ-GLA-022, REQ-GLA-023]
+    components:
+      - {name: PageHeader, source: gap}
+      - {name: FilterBar, source: gap}
+      - {name: DateRangeField, source: existing}
+      - {name: DataTable, source: existing}
+      - {name: SortableColumnHeader, source: existing}
+      - {name: Pagination, source: existing}
+      - {name: DetailPanel, source: gap}
+      - {name: EmptyState, source: gap}
+      - {name: Button, source: existing}
+      - {name: ErrorBanner, source: gap}
+    states: [loading, empty, populated, error, forbidden]
+  - id: UX-GLA-006
+    name: Template library and create-from-template
+    route: /gl/account-templates
+    api_operations: [API-GLA-015, API-GLA-001, API-GLA-016]
+    requirements: [REQ-GLA-032, REQ-GLA-033, REQ-GLA-034]
+    components:
+      - {name: PageHeader, source: gap}
+      - {name: SearchField, source: existing}
+      - {name: Select, source: existing}
+      - {name: DataTable, source: existing}
+      - {name: Pagination, source: existing}
+      - {name: EmptyState, source: gap}
+      - {name: TextField, source: existing}
+      - {name: FieldError, source: existing}
+      - {name: Button, source: existing}
+      - {name: ErrorBanner, source: gap}
+    states: [loading, empty, populated, error, forbidden]

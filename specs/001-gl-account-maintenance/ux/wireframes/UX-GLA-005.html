@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UX-GLA-005 Period summary and transaction list - Wireframe</title>
+  <style>
+    body { font-family: sans-serif; color: #222; background: #fff; max-width: 900px; margin: 2rem auto; }
+    .state-note { border: 1px dashed #999; padding: .5rem; color: #666; font-size: .85rem; margin-bottom: 1rem; }
+    .panel { border: 1px solid #999; padding: .75rem; margin-bottom: 1.5rem; }
+    table { border-collapse: collapse; width: 100%; margin: .5rem 0; } td, th { border: 1px solid #999; padding: .3rem; text-align: left; }
+    th button { border: 0; background: none; font-weight: bold; }
+    input, select { border: 1px solid #777; padding: .3rem; background: #f4f4f4; }
+    button { border: 1px solid #333; background: #ccc; padding: .3rem .8rem; margin-right: .4rem; }
+    .empty { border: 1px dashed #999; padding: .5rem; color: #666; }
+    .detail { border: 2px solid #333; padding: .75rem; background: #f4f4f4; }
+  </style>
+</head>
+<body>
+  <!-- UX-GLA-005. REQ-GLA-017..023. AC-GLA-028..037. API: getPeriodSummary, exportPeriodSummary, listAccountTransactions, getAccountTransaction, exportAccountTransactions -->
+  <h1>Account 1000-100-01: balances and transactions</h1>
+  <div class="state-note">Showing: populated state for both views. Other states: loading (aria-busy skeleton), empty (messages below),
+    error (banner; 404 not found), forbidden (reserved, unreachable in this phase, spec Q-001).</div>
+
+  <div class="panel">
+    <h2>Period summary</h2>
+    <p><label>Fiscal year <select><option>All</option><option>2025</option></select></label>
+       <button type="button">Export Excel</button></p>
+    <table>
+      <tr><th><button type="button" aria-sort="ascending">Fiscal year</button></th><th><button type="button">Fiscal period</button></th><th><button type="button">Balance</button></th></tr>
+      <tr><td>2025</td><td>1</td><td>12,500.00</td></tr>
+      <tr><td>2025</td><td>2</td><td>13,250.50</td></tr>
+    </table>
+    <h3>By fiscal year</h3>
+    <table><tr><th>Fiscal year</th><th>Balance</th></tr><tr><td>2025</td><td>13,250.50</td></tr></table>
+    <h3>Budget versions</h3>
+    <table><tr><th>Version</th><th>Fiscal year</th><th>Amount</th></tr><tr><td>Original</td><td>2025</td><td>150,000.00</td></tr></table>
+    <div class="empty">Empty state: "No balances for this account." (200 with empty lists)</div>
+  </div>
+
+  <div class="panel">
+    <h2>Transactions</h2>
+    <p>
+      <label>From <input type="date"></label> <label>To <input type="date"></label>
+      or <label>Fiscal year <input size="5"></label> <label>Period <input size="3"></label>
+      <button type="button">Apply</button> <button type="button">Export CSV</button>
+    </p>
+    <p class="empty">Date range and fiscal period filters cannot be combined; filling one disables the other.</p>
+    <table>
+      <tr><th>Batch ID</th><th>Description</th><th>Amount</th><th>Posting status</th><th>Posting date</th></tr>
+      <tr><td>B-2026-0001</td><td>Opening deposit</td><td>5,000.00</td><td>Posted</td><td>2026-01-05</td></tr>
+    </table>
+    <p>Showing 1 to 50 of 10,001 entries &nbsp; <button type="button">Previous</button><button type="button">Next</button>
+       <label>Page size <select><option>50</option><option>100</option><option>200</option></select></label></p>
+    <div class="empty">Empty state: "No transactions for this account or filter."</div>
+    <div class="detail">
+      <strong>Journal entry je-000001 (drill-down)</strong>: batch B-2026-0001, fiscal year 2026 period 1
+      <table>
+        <tr><th>Line</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr>
+        <tr><td>1</td><td>1000-100-01</td><td>Cash received</td><td>5,000.00</td><td>0.00</td></tr>
+        <tr><td>2</td><td>3000-100-01</td><td>Capital contribution</td><td>0.00</td><td>5,000.00</td></tr>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

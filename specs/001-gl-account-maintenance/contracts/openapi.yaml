@@ -1,0 +1,1071 @@
+openapi: 3.1.0
+info:
+  title: GL Account Maintenance and Inquiry API
+  version: 1.0.0
+  description: >-
+    Maintain and inquire on general ledger (GL) accounts. Design-time first: this file is the authoritative
+    contract (ADR-001) and the implementation must conform to it.
+
+
+    Stub data phase: every response is served from deterministic synthetic in-memory data. Identifiers are
+    opaque so a real store can replace the stub without a contract change.
+
+
+    No authentication or authorization exists in this phase (spec Q-001, high-risk item accepted by the user;
+    local and non-production use only). Because of that, no 401 or 403 responses and no security scheme are
+    declared. The optional X-User-Id header names the caller in the audit trail; it is not verified (A-008).
+servers:
+  - url: http://localhost:5000
+    description: Local development only
+security: []
+tags:
+  - name: Accounts
+    description: Create, search, read, update and delete GL accounts
+  - name: Attributes
+    description: Reporting attributes of an account
+  - name: Groups
+    description: Account group membership
+  - name: Period summary
+    description: Balances by fiscal period, fiscal year and budget version
+  - name: Transactions
+    description: Posted journal entries of an account
+paths:
+  /api/gl/accounts:
+    get:
+      operationId: searchAccounts
+      tags: [Accounts]
+      summary: Search accounts, including the template library
+      description: >-
+        Returns a page of accounts. Use status=Template to browse the template library (REQ-GLA-034).
+        Text search matches Account ID and description, case-insensitive.
+      x-requirements: [REQ-GLA-034]
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Text to look for in Account ID or description.
+          schema: {type: string, maxLength: 200}
+        - name: status
+          in: query
+          required: false
+          description: Only accounts with this status.
+          schema: {$ref: '#/components/schemas/AccountStatus'}
+        - name: accountType
+          in: query
+          required: false
+          description: Only accounts of this type.
+          schema: {$ref: '#/components/schemas/AccountType'}
+        - name: category
+          in: query
+          required: false
+          description: Only accounts of this category.
+          schema: {$ref: '#/components/schemas/Category'}
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A page of matching accounts (possibly empty).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AccountSummaryPage'}
+              examples:
+                templateLibrary:
+                  summary: Template library search
+                  value:
+                    items:
+                      - accountId: 9000-100-01
+                        description: Standard expense template
+                        accountType: Financial
+                        category: Expense
+                        currencyId: USD
+                        status: Template
+                    total: 1
+                    page: 1
+                    pageSize: 50
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      operationId: createAccount
+      tags: [Accounts]
+      summary: Create an account, optionally from a template
+      description: >-
+        Creates an account from a full Account ID (REQ-GLA-001). The Account ID is split into segments and
+        checked against the segment format and value lists (REQ-GLA-002). Validation errors are returned after
+        submit; there is no validation-only operation (A-007).
+
+
+        When templateAccountId is supplied (REQ-GLA-033) the settings description, accountType, category,
+        currencyId, balanceType and normalBalance are copied from the template unless the request supplies
+        them. Status defaults to Active when omitted. The template is unchanged and the new account gets its
+        own permanent Account ID. A source that is not a template is rejected with 400.
+
+        Without templateAccountId, description, accountType, category, currencyId and status are required
+        (balanceType and normalBalance are required for Financial and forbidden for Statistical, REQ-GLA-008).
+        Status Template creates a template (REQ-GLA-032).
+      x-requirements: [REQ-GLA-001, REQ-GLA-002, REQ-GLA-003, REQ-GLA-007, REQ-GLA-008, REQ-GLA-030, REQ-GLA-032, REQ-GLA-033]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAccountRequest'}
+            examples:
+              financial:
+                summary: New Financial account
+                value:
+                  accountId: 1000-100-02
+                  description: Operating cash
+                  accountType: Financial
+                  category: Asset
+                  currencyId: USD
+                  status: Active
+                  balanceType: BalanceForward
+                  normalBalance: Debit
+              fromTemplate:
+                summary: New account that copies a template
+                value:
+                  accountId: 6000-100-01
+                  templateAccountId: 9000-100-01
+      responses:
+        '201':
+          description: Account created.
+          headers:
+            Location:
+              description: URL of the new account.
+              schema: {type: string}
+            ETag:
+              description: Opaque version of the account, to be sent as If-Match on update.
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Account'}
+              examples:
+                created:
+                  value:
+                    accountId: 1000-100-02
+                    segments:
+                      - {name: Main, value: '1000'}
+                      - {name: Department, value: '100'}
+                      - {name: Sub, value: '02'}
+                    description: Operating cash
+                    accountType: Financial
+                    category: Asset
+                    currencyId: USD
+                    status: Active
+                    balanceType: BalanceForward
+                    normalBalance: Debit
+                    createdDate: '2026-01-15'
+                    eligibleForPosting: true
+                    attributes: []
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404':
+          description: templateAccountId does not identify an existing account.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetails'}
+              examples:
+                templateNotFound:
+                  value:
+                    type: https://httpstatuses.io/404
+                    title: Not Found
+                    status: 404
+                    detail: Template account '9999-999-99' was not found.
+        '409': {$ref: '#/components/responses/DuplicateAccountConflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: getAccount
+      tags: [Accounts]
+      summary: Get one account
+      description: Returns the account with segments, classification, status, posting eligibility and attributes.
+      x-requirements: [REQ-GLA-005, REQ-GLA-013]
+      responses:
+        '200':
+          description: The account.
+          headers:
+            ETag:
+              description: Opaque version of the account, to be sent as If-Match on update.
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Account'}
+              examples:
+                active:
+                  value:
+                    accountId: 1000-100-01
+                    segments:
+                      - {name: Main, value: '1000'}
+                      - {name: Department, value: '100'}
+                      - {name: Sub, value: '01'}
+                    description: Cash and equivalents
+                    accountType: Financial
+                    category: Asset
+                    currencyId: USD
+                    status: Active
+                    balanceType: BalanceForward
+                    normalBalance: Debit
+                    createdDate: '2025-01-01'
+                    eligibleForPosting: true
+                    attributes:
+                      - {attributeId: att-1, attributeTypeId: dept, attributeValueId: finance}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      operationId: updateAccount
+      tags: [Accounts]
+      summary: Update the editable fields of an account
+      description: >-
+        Replaces Description, Category, Currency ID and Status (REQ-GLA-006); Balance Type and Normal Balance
+        are set at creation and cannot be updated. Account ID and Account Type are permanent: if the body
+        carries accountId or accountType with a value that differs from the stored one, the request is
+        rejected with 400 naming the field and nothing changes (REQ-GLA-004).
+
+
+        A changed status needs statusJustification of 1 to 500 characters (REQ-GLA-014). Template is never
+        changed to or from another status. Optional attributeChanges are applied together with the account
+        change, all or nothing (REQ-GLA-011).
+
+
+        If-Match is required (optimistic concurrency, REQ-GLA-035): a missing header returns 400, a stale
+        version returns 409 and leaves the stored account unchanged.
+      x-requirements: [REQ-GLA-004, REQ-GLA-006, REQ-GLA-007, REQ-GLA-011, REQ-GLA-014, REQ-GLA-031, REQ-GLA-035]
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateAccountRequest'}
+            examples:
+              statusAndAttributes:
+                value:
+                  description: Cash and equivalents (main)
+                  category: Asset
+                  currencyId: EUR
+                  status: Hold
+                  statusJustification: Under review by finance
+                  attributeChanges:
+                    - {action: Add, attributeTypeId: region, attributeValueId: emea}
+                    - {action: Remove, attributeId: att-1}
+      responses:
+        '200':
+          description: Account updated; the body is the new state.
+          headers:
+            ETag:
+              description: New opaque version of the account.
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Account'}
+              examples:
+                updated:
+                  value:
+                    accountId: 1000-100-01
+                    segments:
+                      - {name: Main, value: '1000'}
+                      - {name: Department, value: '100'}
+                      - {name: Sub, value: '01'}
+                    description: Cash and equivalents (main)
+                    accountType: Financial
+                    category: Asset
+                    currencyId: EUR
+                    status: Hold
+                    balanceType: BalanceForward
+                    normalBalance: Debit
+                    createdDate: '2025-01-01'
+                    eligibleForPosting: false
+                    attributes:
+                      - {attributeId: att-3, attributeTypeId: region, attributeValueId: emea}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/StaleVersionConflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: deleteAccount
+      tags: [Accounts]
+      summary: Delete an account that has no dependencies
+      description: >-
+        Deletes the account only when it has no posted transactions, unposted transactions, budgets,
+        allocations or group memberships (REQ-GLA-024, REQ-GLA-025). Otherwise returns 409 listing every
+        blocker with its count and suggesting deactivation (REQ-GLA-026).
+      x-requirements: [REQ-GLA-024, REQ-GLA-025, REQ-GLA-026]
+      responses:
+        '204':
+          description: Account deleted. No body.
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/DeleteBlockedConflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/attributes:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    post:
+      operationId: addAccountAttribute
+      tags: [Attributes]
+      summary: Add one attribute to an account
+      description: >-
+        Adds an attribute type and value pair (REQ-GLA-009). The value must belong to the type (REQ-GLA-010).
+        The account version changes, so a later update needs a fresh ETag.
+      x-requirements: [REQ-GLA-009, REQ-GLA-010, REQ-GLA-031]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AttributeInput'}
+            examples:
+              region:
+                value: {attributeTypeId: region, attributeValueId: emea}
+      responses:
+        '201':
+          description: Attribute added.
+          headers:
+            ETag:
+              description: New opaque version of the account.
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AccountAttribute'}
+              examples:
+                added:
+                  value: {attributeId: att-3, attributeTypeId: region, attributeValueId: emea}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/attributes/{attributeId}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - $ref: '#/components/parameters/AttributeId'
+    put:
+      operationId: updateAccountAttribute
+      tags: [Attributes]
+      summary: Change one attribute of an account
+      description: Replaces the attribute type and value of an existing attribute. The account version changes.
+      x-requirements: [REQ-GLA-009, REQ-GLA-010, REQ-GLA-031]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AttributeInput'}
+            examples:
+              change:
+                value: {attributeTypeId: dept, attributeValueId: treasury}
+      responses:
+        '200':
+          description: Attribute updated.
+          headers:
+            ETag:
+              description: New opaque version of the account.
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AccountAttribute'}
+              examples:
+                updated:
+                  value: {attributeId: att-1, attributeTypeId: dept, attributeValueId: treasury}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: removeAccountAttribute
+      tags: [Attributes]
+      summary: Remove one attribute from an account
+      description: Removes the attribute. The account version changes.
+      x-requirements: [REQ-GLA-009, REQ-GLA-031]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Attribute removed. No body.
+          headers:
+            ETag:
+              description: New opaque version of the account.
+              schema: {type: string}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/groups:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: listAccountGroups
+      tags: [Groups]
+      summary: List the account groups that contain an account
+      description: >-
+        Returns every group that contains the account with its ID, name and parent chain (REQ-GLA-015).
+        An account in no group returns an empty list, not an error.
+      x-requirements: [REQ-GLA-015]
+      responses:
+        '200':
+          description: The groups of the account (possibly empty).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AccountGroupList'}
+              examples:
+                nested:
+                  value:
+                    items:
+                      - groupId: grp-revenue-na
+                        name: North America revenue
+                        parentChain:
+                          - {groupId: grp-revenue, name: Revenue}
+                      - groupId: grp-revenue
+                        name: Revenue
+                        parentChain: []
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/groups/export:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: exportAccountGroups
+      tags: [Groups]
+      summary: Export the group membership of an account as CSV
+      description: >-
+        Downloads a CSV file with columns groupId, name, parentChain (names joined by " > "). An account in no
+        group returns a file with only the header row.
+      x-requirements: [REQ-GLA-016]
+      responses:
+        '200':
+          description: CSV file.
+          headers:
+            Content-Disposition:
+              description: Attachment file name.
+              schema: {type: string}
+          content:
+            text/csv:
+              schema: {type: string}
+              examples:
+                groups:
+                  value: "groupId,name,parentChain\ngrp-revenue-na,North America revenue,Revenue\ngrp-revenue,Revenue,\n"
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/period-summary:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: getPeriodSummary
+      tags: [Period summary]
+      summary: Get balances by fiscal period, fiscal year and budget version
+      description: >-
+        Returns balances per fiscal period, per fiscal year and the available budget versions (REQ-GLA-017).
+        An account without balances returns empty lists with 200. fiscalYear filters all three lists;
+        sortBy and sortDirection order the period rows (REQ-GLA-018).
+      x-requirements: [REQ-GLA-017, REQ-GLA-018]
+      parameters:
+        - $ref: '#/components/parameters/FiscalYearFilter'
+        - $ref: '#/components/parameters/PeriodSortBy'
+        - $ref: '#/components/parameters/SortDirection'
+      responses:
+        '200':
+          description: The period summary.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PeriodSummary'}
+              examples:
+                summary:
+                  value:
+                    accountId: 1000-100-01
+                    periods:
+                      - {fiscalYear: 2025, fiscalPeriod: 1, balance: 12500.00}
+                      - {fiscalYear: 2025, fiscalPeriod: 2, balance: 13250.50}
+                    years:
+                      - {fiscalYear: 2025, balance: 13250.50}
+                    budgetVersions:
+                      - {budgetVersion: Original, fiscalYear: 2025, amount: 150000.00}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/period-summary/export:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: exportPeriodSummary
+      tags: [Period summary]
+      summary: Export the period summary to Excel
+      description: >-
+        Downloads an .xlsx workbook with the same rows as the filtered and sorted period summary (REQ-GLA-019).
+        Accepts the same filter and sort parameters as getPeriodSummary.
+      x-requirements: [REQ-GLA-019]
+      parameters:
+        - $ref: '#/components/parameters/FiscalYearFilter'
+        - $ref: '#/components/parameters/PeriodSortBy'
+        - $ref: '#/components/parameters/SortDirection'
+      responses:
+        '200':
+          description: Excel workbook (.xlsx).
+          headers:
+            Content-Disposition:
+              description: Attachment file name.
+              schema: {type: string}
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: {type: string, format: binary}
+              examples:
+                workbook:
+                  summary: Binary workbook (not shown)
+                  value: ''
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/transactions:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: listAccountTransactions
+      tags: [Transactions]
+      summary: List journal entries of an account
+      description: >-
+        Returns a page of journal entries with batch ID, description, amount and posting status
+        (REQ-GLA-020), newest posting date first. Filter by a date range (fromDate, toDate) or by a fiscal
+        period (fiscalYear with fiscalPeriod) (REQ-GLA-021); sending both kinds of filter returns 400. pageSize
+        defaults to 50 and is at most 200; a larger value returns 400. An account with no transactions returns
+        an empty page.
+      x-requirements: [REQ-GLA-020, REQ-GLA-021]
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/FiscalYearFilter'
+        - $ref: '#/components/parameters/FiscalPeriodFilter'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A page of journal entries.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JournalEntryPage'}
+              examples:
+                page:
+                  value:
+                    items:
+                      - entryId: je-000001
+                        batchId: B-2026-0001
+                        description: Opening deposit
+                        amount: 5000.00
+                        postingStatus: Posted
+                        postingDate: '2026-01-05'
+                    total: 10001
+                    page: 1
+                    pageSize: 50
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/transactions/export:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      operationId: exportAccountTransactions
+      tags: [Transactions]
+      summary: Export the filtered journal entries as CSV
+      description: >-
+        Downloads a CSV file with exactly the entries that match the filters, not just one page (REQ-GLA-023).
+        Accepts the same filters as listAccountTransactions. No match returns only the header row.
+      x-requirements: [REQ-GLA-023]
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/FiscalYearFilter'
+        - $ref: '#/components/parameters/FiscalPeriodFilter'
+      responses:
+        '200':
+          description: CSV file.
+          headers:
+            Content-Disposition:
+              description: Attachment file name.
+              schema: {type: string}
+          content:
+            text/csv:
+              schema: {type: string}
+              examples:
+                transactions:
+                  value: "entryId,batchId,description,amount,postingStatus,postingDate\nje-000001,B-2026-0001,Opening deposit,5000.00,Posted,2026-01-05\n"
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /api/gl/accounts/{id}/transactions/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - name: entryId
+        in: path
+        required: true
+        description: Opaque journal entry identifier from the transaction list.
+        schema: {type: string, minLength: 1, maxLength: 64}
+    get:
+      operationId: getAccountTransaction
+      tags: [Transactions]
+      summary: Get the detail of one journal entry
+      description: Returns detailed journal entry information for drill-down (REQ-GLA-022).
+      x-requirements: [REQ-GLA-022]
+      responses:
+        '200':
+          description: The journal entry detail.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JournalEntryDetail'}
+              examples:
+                detail:
+                  value:
+                    entryId: je-000001
+                    batchId: B-2026-0001
+                    description: Opening deposit
+                    amount: 5000.00
+                    postingStatus: Posted
+                    postingDate: '2026-01-05'
+                    fiscalYear: 2026
+                    fiscalPeriod: 1
+                    lines:
+                      - {lineNumber: 1, accountId: 1000-100-01, description: Cash received, debit: 5000.00, credit: 0}
+                      - {lineNumber: 2, accountId: 3000-100-01, description: Capital contribution, debit: 0, credit: 5000.00}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+components:
+  parameters:
+    AccountId:
+      name: id
+      in: path
+      required: true
+      description: Full Account ID, for example 1000-100-01. Opaque to clients apart from this format in the stub phase.
+      schema: {type: string, minLength: 1, maxLength: 32}
+    AttributeId:
+      name: attributeId
+      in: path
+      required: true
+      description: Attribute identifier assigned by the system.
+      schema: {type: string, minLength: 1, maxLength: 64}
+    UserId:
+      name: X-User-Id
+      in: header
+      required: false
+      description: >-
+        Caller identifier recorded in the audit trail. Not verified; recorded as "unknown" when absent
+        (A-008). This is not authentication.
+      schema: {type: string, maxLength: 64}
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: ETag value from the last read of the account. Missing returns 400; stale returns 409.
+      schema: {type: string, minLength: 1, maxLength: 128}
+    Page:
+      name: page
+      in: query
+      required: false
+      description: 1-based page number.
+      schema: {type: integer, minimum: 1, default: 1}
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: Items per page, at most 200.
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    FromDate:
+      name: fromDate
+      in: query
+      required: false
+      description: Earliest posting date, inclusive.
+      schema: {type: string, format: date}
+    ToDate:
+      name: toDate
+      in: query
+      required: false
+      description: Latest posting date, inclusive; must not be before fromDate.
+      schema: {type: string, format: date}
+    FiscalYearFilter:
+      name: fiscalYear
+      in: query
+      required: false
+      description: Only this fiscal year.
+      schema: {type: integer, minimum: 1900, maximum: 2999}
+    FiscalPeriodFilter:
+      name: fiscalPeriod
+      in: query
+      required: false
+      description: Only this fiscal period; requires fiscalYear.
+      schema: {type: integer, minimum: 1, maximum: 13}
+    PeriodSortBy:
+      name: sortBy
+      in: query
+      required: false
+      description: Column to sort the period rows by.
+      schema:
+        type: string
+        enum: [fiscalYear, fiscalPeriod, balance]
+        default: fiscalPeriod
+    SortDirection:
+      name: sortDirection
+      in: query
+      required: false
+      description: Sort direction.
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+  responses:
+    BadRequest:
+      description: >-
+        Validation or request error: invalid or missing field, invalid segment, permanent field changed,
+        status change without justification, missing If-Match, bad filter or page size.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/HttpValidationProblemDetails'}
+          examples:
+            invalidSegment:
+              summary: Invalid Account ID segment
+              value:
+                type: https://httpstatuses.io/400
+                title: One or more validation errors occurred.
+                status: 400
+                errors:
+                  accountId:
+                    - "Account ID does not match segment format. Expected format: 9999-999-99 (segment Department '777' is not an allowed value)."
+            missingJustification:
+              summary: Status change without justification
+              value:
+                type: https://httpstatuses.io/400
+                title: One or more validation errors occurred.
+                status: 400
+                errors:
+                  statusJustification:
+                    - A justification of 1 to 500 characters is required when the status changes.
+    NotFound:
+      description: No account (or attribute, or journal entry) with the requested ID. No data is leaked.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            notFound:
+              value:
+                type: https://httpstatuses.io/404
+                title: Not Found
+                status: 404
+                detail: Account '9999-999-99' was not found.
+    DuplicateAccountConflict:
+      description: An account with this Account ID already exists.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            duplicate:
+              value:
+                type: https://httpstatuses.io/409
+                title: Conflict
+                status: 409
+                detail: Account ID '1000-100-01' already exists. Please use a unique ID.
+    StaleVersionConflict:
+      description: The If-Match version is stale; another change was saved first. The stored account is unchanged.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            stale:
+              value:
+                type: https://httpstatuses.io/409
+                title: Conflict
+                status: 409
+                detail: The account was changed by someone else. Reload it and try again.
+    DeleteBlockedConflict:
+      description: Deletion is blocked by one or more dependencies; every blocker is listed with its count.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/DeleteBlockedProblemDetails'}
+          examples:
+            postedTransactions:
+              value:
+                type: https://httpstatuses.io/409
+                title: Conflict
+                status: 409
+                detail: Cannot delete account '1000-200-01'. It has 10001 posted transaction(s).
+                blockers:
+                  - {kind: PostedTransactions, count: 10001}
+                suggestion: Set the account status to Inactive instead of deleting it.
+    InternalError:
+      description: Unexpected server error. No internal details are exposed.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            error:
+              value:
+                type: https://httpstatuses.io/500
+                title: An unexpected error occurred.
+                status: 500
+  schemas:
+    AccountType:
+      type: string
+      description: Permanent after creation.
+      enum: [Financial, Statistical]
+    Category:
+      type: string
+      description: Asset, Liability, Equity, Revenue or Expense for Financial accounts; Statistical for Statistical accounts.
+      enum: [Asset, Liability, Equity, Revenue, Expense, Statistical]
+    CurrencyId:
+      type: string
+      enum: [USD, EUR, GBP, JPY]
+    AccountStatus:
+      type: string
+      description: Only Active accounts are eligible for new transactions. Template is set only at creation.
+      enum: [Active, Hold, Inactive, Template]
+    BalanceType:
+      type: string
+      enum: [BalanceForward, Periodic]
+    NormalBalance:
+      type: string
+      enum: [Debit, Credit]
+    Segment:
+      type: object
+      required: [name, value]
+      properties:
+        name: {type: string}
+        value: {type: string}
+    AccountAttribute:
+      type: object
+      required: [attributeId, attributeTypeId, attributeValueId]
+      properties:
+        attributeId: {type: string, description: Assigned by the system.}
+        attributeTypeId: {type: string}
+        attributeValueId: {type: string}
+    AttributeInput:
+      type: object
+      required: [attributeTypeId, attributeValueId]
+      properties:
+        attributeTypeId: {type: string, minLength: 1, maxLength: 64}
+        attributeValueId: {type: string, minLength: 1, maxLength: 64, description: Must belong to attributeTypeId.}
+    AttributeChange:
+      type: object
+      description: >-
+        One staged attribute change. Add needs attributeTypeId and attributeValueId; Edit needs attributeId,
+        attributeTypeId and attributeValueId; Remove needs attributeId.
+      required: [action]
+      properties:
+        action: {type: string, enum: [Add, Edit, Remove]}
+        attributeId: {type: string, maxLength: 64}
+        attributeTypeId: {type: string, maxLength: 64}
+        attributeValueId: {type: string, maxLength: 64}
+    Account:
+      type: object
+      required: [accountId, segments, description, accountType, category, currencyId, status, createdDate, eligibleForPosting, attributes]
+      properties:
+        accountId: {type: string, maxLength: 32}
+        segments:
+          type: array
+          items: {$ref: '#/components/schemas/Segment'}
+        description: {type: string, minLength: 1, maxLength: 200}
+        accountType: {$ref: '#/components/schemas/AccountType'}
+        category: {$ref: '#/components/schemas/Category'}
+        currencyId: {$ref: '#/components/schemas/CurrencyId'}
+        status: {$ref: '#/components/schemas/AccountStatus'}
+        balanceType:
+          description: Present for Financial accounts only.
+          $ref: '#/components/schemas/BalanceType'
+        normalBalance:
+          description: Present for Financial accounts only.
+          $ref: '#/components/schemas/NormalBalance'
+        createdDate: {type: string, format: date}
+        eligibleForPosting: {type: boolean, description: True only when status is Active.}
+        attributes:
+          type: array
+          items: {$ref: '#/components/schemas/AccountAttribute'}
+    AccountSummary:
+      type: object
+      required: [accountId, description, accountType, category, currencyId, status]
+      properties:
+        accountId: {type: string}
+        description: {type: string}
+        accountType: {$ref: '#/components/schemas/AccountType'}
+        category: {$ref: '#/components/schemas/Category'}
+        currencyId: {$ref: '#/components/schemas/CurrencyId'}
+        status: {$ref: '#/components/schemas/AccountStatus'}
+    AccountSummaryPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AccountSummary'}
+        total: {type: integer, minimum: 0}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1}
+    CreateAccountRequest:
+      type: object
+      description: >-
+        accountId is always required. Without templateAccountId, description, accountType, category,
+        currencyId and status are required, and balanceType and normalBalance are required for Financial
+        and not allowed for Statistical.
+      required: [accountId]
+      properties:
+        accountId: {type: string, minLength: 1, maxLength: 32, description: "Full Account ID, for example 1000-100-02."}
+        templateAccountId: {type: string, maxLength: 32, description: Account with status Template whose settings are copied.}
+        description: {type: string, minLength: 1, maxLength: 200}
+        accountType: {$ref: '#/components/schemas/AccountType'}
+        category: {$ref: '#/components/schemas/Category'}
+        currencyId: {$ref: '#/components/schemas/CurrencyId'}
+        status: {$ref: '#/components/schemas/AccountStatus'}
+        balanceType: {$ref: '#/components/schemas/BalanceType'}
+        normalBalance: {$ref: '#/components/schemas/NormalBalance'}
+        attributes:
+          type: array
+          items: {$ref: '#/components/schemas/AttributeInput'}
+    UpdateAccountRequest:
+      type: object
+      description: >-
+        Editable fields of an account. accountId and accountType may be echoed back but must equal the stored
+        values, otherwise the request is rejected.
+      required: [description, category, currencyId, status]
+      properties:
+        accountId: {type: string, maxLength: 32}
+        accountType: {$ref: '#/components/schemas/AccountType'}
+        description: {type: string, minLength: 1, maxLength: 200}
+        category: {$ref: '#/components/schemas/Category'}
+        currencyId: {$ref: '#/components/schemas/CurrencyId'}
+        status: {$ref: '#/components/schemas/AccountStatus'}
+        statusJustification: {type: string, minLength: 1, maxLength: 500, description: Required when status differs from the stored status.}
+        attributeChanges:
+          type: array
+          description: Applied with the account change, all or nothing.
+          items: {$ref: '#/components/schemas/AttributeChange'}
+    ProblemDetails:
+      type: object
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        instance: {type: string}
+    HttpValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: object
+              description: Field name to the list of messages for that field.
+              additionalProperties:
+                type: array
+                items: {type: string}
+    DeleteBlocker:
+      type: object
+      required: [kind, count]
+      properties:
+        kind: {type: string, enum: [PostedTransactions, UnpostedTransactions, Budgets, Allocations, GroupMemberships]}
+        count: {type: integer, minimum: 1}
+    DeleteBlockedProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          required: [blockers, suggestion]
+          properties:
+            blockers:
+              type: array
+              minItems: 1
+              items: {$ref: '#/components/schemas/DeleteBlocker'}
+            suggestion: {type: string, description: Deactivation offered as the alternative.}
+    GroupRef:
+      type: object
+      required: [groupId, name]
+      properties:
+        groupId: {type: string}
+        name: {type: string}
+    AccountGroup:
+      type: object
+      required: [groupId, name, parentChain]
+      properties:
+        groupId: {type: string}
+        name: {type: string}
+        parentChain:
+          type: array
+          description: Ancestors from the nearest parent up to the root; empty for a root group.
+          items: {$ref: '#/components/schemas/GroupRef'}
+    AccountGroupList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AccountGroup'}
+    PeriodBalance:
+      type: object
+      required: [fiscalYear, fiscalPeriod, balance]
+      properties:
+        fiscalYear: {type: integer}
+        fiscalPeriod: {type: integer}
+        balance: {type: number}
+    YearBalance:
+      type: object
+      required: [fiscalYear, balance]
+      properties:
+        fiscalYear: {type: integer}
+        balance: {type: number}
+    BudgetVersionAmount:
+      type: object
+      required: [budgetVersion, fiscalYear, amount]
+      properties:
+        budgetVersion: {type: string}
+        fiscalYear: {type: integer}
+        amount: {type: number}
+    PeriodSummary:
+      type: object
+      required: [accountId, periods, years, budgetVersions]
+      properties:
+        accountId: {type: string}
+        periods:
+          type: array
+          items: {$ref: '#/components/schemas/PeriodBalance'}
+        years:
+          type: array
+          items: {$ref: '#/components/schemas/YearBalance'}
+        budgetVersions:
+          type: array
+          items: {$ref: '#/components/schemas/BudgetVersionAmount'}
+    JournalEntrySummary:
+      type: object
+      required: [entryId, batchId, description, amount, postingStatus, postingDate]
+      properties:
+        entryId: {type: string}
+        batchId: {type: string}
+        description: {type: string}
+        amount: {type: number}
+        postingStatus: {type: string, enum: [Posted, Unposted]}
+        postingDate: {type: string, format: date}
+    JournalEntryPage:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/JournalEntrySummary'}
+        total: {type: integer, minimum: 0}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1}
+    JournalLine:
+      type: object
+      required: [lineNumber, accountId, debit, credit]
+      properties:
+        lineNumber: {type: integer}
+        accountId: {type: string}
+        description: {type: string}
+        debit: {type: number}
+        credit: {type: number}
+    JournalEntryDetail:
+      allOf:
+        - $ref: '#/components/schemas/JournalEntrySummary'
+        - type: object
+          required: [fiscalYear, fiscalPeriod, lines]
+          properties:
+            fiscalYear: {type: integer}
+            fiscalPeriod: {type: integer}
+            lines:
+              type: array
+              items: {$ref: '#/components/schemas/JournalLine'}

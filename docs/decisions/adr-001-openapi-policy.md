@@ -1,8 +1,8 @@
 # ADR-001: OpenAPI Contract Source-of-Truth Policy
 
-**Status:** Undecided — fill in before implementing the first API feature.
+**Status:** Decided — design-time first.
 
-**Date:** (to be set when decided)
+**Date:** 2026-10-13
 
 ---
 
@@ -18,7 +18,7 @@ Every API endpoint needs an OpenAPI contract. There are two mainstream policies:
 
 ## Decision
 
-**[ ] Design-time first** — OpenAPI YAML is designed, reviewed, and committed before implementation begins.
+**[x] Design-time first** — OpenAPI YAML is designed, reviewed, and committed before implementation begins.
 Validation: `dotnet run scripts/sdlc/sdlc.cs -- openapi specs/<NNN>/contracts/openapi.yaml`
 
 **[ ] Code-first** — Application generates OpenAPI; committed snapshot used for drift detection only.
@@ -42,7 +42,9 @@ Validation: Generate document at build time and compare with `dotnet run scripts
 
 ## Rationale
 
-_(Fill in when decided)_
+The user chose design-time first when planning feature `001-gl-account-maintenance`, so the reviewed
+`specs/001-gl-account-maintenance/contracts/openapi.yaml` is authoritative and the implementation must
+conform to it. This fits constitution principle II (contracts before implementation) and the approval gates.
 
-**Decided by:** (name)
-**Date:** (date)
+**Decided by:** Siddharth Kadam (chat answer during `speckit-plan`, feature `001-gl-account-maintenance`)
+**Date:** 2026-10-13

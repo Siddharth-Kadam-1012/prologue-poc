@@ -72,7 +72,7 @@ Record each decision as an ADR in `docs/decisions/`.
 
 ## Conventions not yet decided
 
-- OpenAPI source-of-truth policy (design-time-first vs code-first) → `docs/decisions/adr-001-openapi-policy.md`
+- ~~OpenAPI source-of-truth policy~~ → decided 2026-10-13: design-time first (`docs/decisions/adr-001-openapi-policy.md`)
 - Frontend framework → `docs/decisions/adr-002-frontend.md`
 - Database/ORM → create an ADR when chosen
 - Authentication scheme → create an ADR when chosen

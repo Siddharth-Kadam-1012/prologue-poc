@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UX-GLA-006 Template library and create-from-template - Wireframe</title>
+  <style>
+    body { font-family: sans-serif; color: #222; background: #fff; max-width: 900px; margin: 2rem auto; }
+    .state-note { border: 1px dashed #999; padding: .5rem; color: #666; font-size: .85rem; margin-bottom: 1rem; }
+    table { border-collapse: collapse; width: 100%; margin: .5rem 0; } td, th { border: 1px solid #999; padding: .3rem; text-align: left; }
+    input, select { border: 1px solid #777; padding: .3rem; background: #f4f4f4; }
+    button { border: 1px solid #333; background: #ccc; padding: .3rem .8rem; margin-right: .4rem; }
+    .panel { border: 2px solid #333; padding: .75rem; background: #f4f4f4; margin-top: 1rem; }
+    .err { border: 1px solid #333; background: #eee; padding: .2rem .4rem; font-size: .85rem; }
+    .empty { border: 1px dashed #999; padding: .5rem; color: #666; }
+  </style>
+</head>
+<body>
+  <!-- UX-GLA-006. REQ-GLA-032, 033, 034. AC-GLA-052..055. API: searchAccounts (status=Template), createAccount (templateAccountId) -->
+  <h1>Account templates</h1>
+  <div class="state-note">Showing: populated state with the create-from-template panel open. Other states: loading (skeleton rows),
+    empty (message below), error (banner; the 400 "source is not a template" message appears in the panel),
+    forbidden (reserved, unreachable in this phase, spec Q-001).</div>
+
+  <p><label>Search <input placeholder="Account ID or description"></label>
+     <label>Category <select><option>All</option><option>Expense</option></select></label>
+     <button type="button">Search</button></p>
+
+  <table>
+    <tr><th>Account ID</th><th>Description</th><th>Type</th><th>Category</th><th>Currency</th><th>Actions</th></tr>
+    <tr><td>9000-100-01</td><td>Standard expense template</td><td>Financial</td><td>Expense</td><td>USD</td><td><button type="button">Create account from template</button></td></tr>
+  </table>
+  <p>Showing 1 of 1 &nbsp; <button type="button">Previous</button><button type="button">Next</button></p>
+  <div class="empty">Empty state: "No templates match your search." with a link to create an account with status Template (UX-GLA-001).</div>
+
+  <div class="panel">
+    <h2>Create account from template 9000-100-01</h2>
+    <p><label>New Account ID <input value="1000-100-01" aria-describedby="n-err"></label></p>
+    <div id="n-err" class="err">Account ID '1000-100-01' already exists. Please use a unique ID.</div>
+    <p>Copied settings (editable before saving): Financial, Expense, USD, Debit, BalanceForward. Status: Active.</p>
+    <button type="button">Save</button><button type="button">Cancel</button>
+  </div>
+</body>
+</html>

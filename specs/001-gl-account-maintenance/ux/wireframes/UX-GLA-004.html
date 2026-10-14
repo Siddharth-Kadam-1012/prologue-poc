@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UX-GLA-004 Delete confirmation and blocked-delete message - Wireframe</title>
+  <style>
+    body { font-family: sans-serif; color: #222; background: #fff; max-width: 900px; margin: 2rem auto; }
+    .state-note { border: 1px dashed #999; padding: .5rem; color: #666; font-size: .85rem; margin-bottom: 1rem; }
+    .dialog { border: 2px solid #333; padding: 1rem; margin-bottom: 1.5rem; width: 34rem; background: #f4f4f4; }
+    button { border: 1px solid #333; background: #ccc; padding: .4rem 1rem; margin-right: .5rem; }
+    ul { margin: .5rem 0; }
+  </style>
+</head>
+<body>
+  <!-- UX-GLA-004. REQ-GLA-024, 025, 026. AC-GLA-038..042. API: deleteAccount -->
+  <h1>Delete account dialog</h1>
+  <div class="state-note">Showing: blocked-delete state (populated). Other states: loading (buttons disabled while the request runs),
+    empty (not applicable; step one is the confirmation below), error (banner inside the dialog for 500), forbidden (reserved, unreachable in this phase, spec Q-001).
+    A 204 closes the dialog and moves to search with a success notice.</div>
+
+  <h2>Step 1: confirmation</h2>
+  <div class="dialog" role="alertdialog" aria-labelledby="t1" aria-describedby="d1">
+    <h3 id="t1">Delete account 1000-300-01?</h3>
+    <p id="d1">This cannot be undone.</p>
+    <button type="button">Delete</button><button type="button">Cancel</button>
+  </div>
+
+  <h2>Step 2 (409): blocked</h2>
+  <div class="dialog" role="alertdialog" aria-labelledby="t2" aria-describedby="d2">
+    <h3 id="t2">Cannot delete account 1000-200-01</h3>
+    <p id="d2">Cannot delete account '1000-200-01'. It has 10001 posted transaction(s).</p>
+    <p>Blocking items:</p>
+    <ul>
+      <li>Posted transactions: 10001</li>
+      <li>Budgets: 2</li>
+      <li>Group memberships: 1</li>
+    </ul>
+    <p>Set the account status to Inactive instead of deleting it.</p>
+    <button type="button">Set status to Inactive instead</button><button type="button">Close</button>
+  </div>
+</body>
+</html>

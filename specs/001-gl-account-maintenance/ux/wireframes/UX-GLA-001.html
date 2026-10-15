@@ -2,77 +2,140 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>UX-GLA-001 Account create / edit form - Wireframe</title>
+  <title>UX-GLA-001 Account create / edit form - Wireframe (Fiserv Design System)</title>
   <style>
-    body { font-family: sans-serif; color: #222; background: #fff; max-width: 900px; margin: 2rem auto; }
-    .state-note { border: 1px dashed #999; padding: .5rem; color: #666; font-size: .85rem; margin-bottom: 1rem; }
-    fieldset { border: 1px solid #999; margin-bottom: 1rem; }
-    label { display: block; margin: .6rem 0 .2rem; font-weight: bold; }
-    input, select, textarea { border: 1px solid #777; padding: .35rem; width: 20rem; background: #f4f4f4; }
-    input[readonly] { background: #ddd; }
-    .hint { color: #666; font-size: .85rem; }
-    .err { border: 1px solid #333; background: #eee; padding: .3rem .5rem; margin-top: .2rem; font-size: .85rem; }
-    .summary { border: 2px solid #333; padding: .5rem; margin-bottom: 1rem; }
-    button { border: 1px solid #333; background: #ccc; padding: .4rem 1rem; margin-right: .5rem; }
-    table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #999; padding: .3rem; }
+    /* Fiserv Design System tokens (source: Fiserv Design System Components List, DESIGN_SYSTEM_GUIDE.md) */
+    :root {
+      --primary: #2759A1; --primary-light: #527AB4; --primary-dark: #1F4781;
+      --success: #00852C; --error: #FB0000; --warning: #F67300; --info: #3968C3;
+      --gray-100: #FFFFFF; --gray-200: #F6F6F6; --gray-300: #EEEEEE; --gray-400: #CCCCCC;
+      --gray-500: #999999; --gray-600: #666666; --gray-700: #333333; --gray-900: #1C1C1C;
+      --error-surface: #FFF5F5;
+      /* Button component tokens (ButtonShowcase.tsx: Tailwind blue/red/slate scale) */
+      --btn-primary: #155DFC; --btn-primary-hover: #1447E6; --btn-primary-active: #193CB8; --btn-primary-disabled: #8EC5FF; --btn-primary-ring: #2B7FFF;
+      --btn-danger: #E7000B; --btn-danger-hover: #C10007; --btn-danger-active: #9F0712; --btn-danger-disabled: #FFA2A2; --btn-danger-ring: #FB2C36;
+      --slate-50: #F8FAFC; --slate-100: #F1F5F9; --slate-200: #E2E8F0; --slate-300: #CAD5E2; --slate-400: #90A1B9; --slate-700: #314158; --slate-500-ring: #62748E;
+      --space-1: 4px; --space-2: 8px; --space-3: 16px; --space-4: 24px; --space-5: 32px; --space-8: 48px;
+      --radius-md: 8px; --radius-xl: 16px; --radius-full: 9999px;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: "Open Sans", system-ui, sans-serif; font-size: 16px; line-height: 22px; font-weight: 400;
+           color: var(--gray-900); background: var(--gray-200); max-width: 960px; margin: var(--space-4) auto; padding: 0 var(--space-3); }
+    h1 { font-size: 34px; line-height: 46px; font-weight: 700; margin: 0 0 var(--space-3); }
+    h2 { font-size: 24px; line-height: 34px; font-weight: 600; margin: 0 0 var(--space-3); }
+    h3 { font-size: 21px; line-height: 34px; font-weight: 400; margin: var(--space-3) 0 var(--space-2); }
+    .caption { font-size: 12px; line-height: 16px; color: var(--gray-600); }
+    .subtitle { font-size: 14px; line-height: 20px; }
+    .state-note { border: 2px dashed var(--gray-500); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3);
+                  font-size: 12px; line-height: 16px; color: var(--gray-600); background: var(--gray-100); margin-bottom: var(--space-4); }
+    .card { background: var(--gray-100); border: 1px solid var(--gray-300); border-radius: var(--radius-xl); padding: var(--space-4); margin-bottom: var(--space-4); }
+    .field { margin-bottom: var(--space-5); }
+    .field label, .label { display: block; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--gray-900); margin-bottom: var(--space-2); }
+    .tf { display: block; width: 100%; max-width: 28rem; font: inherit; font-size: 16px; color: var(--gray-900); background-color: var(--gray-100);
+          border: 2px solid var(--gray-400); border-radius: var(--radius-xl); padding: 12px var(--space-3); line-height: 24px; }
+    .tf:hover { border-color: var(--primary-light); }
+    .tf:focus { outline: 2px solid rgba(39,89,161,.2); border-color: var(--primary); }
+    .tf[readonly], .tf.readonly { background-color: var(--gray-200); color: var(--gray-600); }
+    .tf.error { border-color: var(--error); background-color: var(--error-surface); color: var(--error); }
+    .tf.sm.wide { width: 20rem; }
+    .tf.sm { padding: 8px 12px; font-size: 14px; line-height: 24px; height: 44px; max-width: none; width: auto; }
+    .helper { font-size: 14px; line-height: 20px; color: var(--gray-600); margin-top: var(--space-2); }
+
+    /* Trailing icon (Text Field spec: icon right-3 = 12px from the border, input pr-10 = 40px, icon 20px / 16px small) */
+    select.tf { appearance: none; -webkit-appearance: none; padding-right: 40px; background-repeat: no-repeat;
+      background-position: right 12px center; background-size: 20px 20px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+    select.tf.sm { padding-right: 40px; background-size: 16px 16px; }
+    select.tf.error { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FB0000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+    select.tf:disabled { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23CCCCCC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+    input.tf[type="date"] { padding-right: 12px; }
+    input.tf[type="date"]::-webkit-calendar-picker-indicator { width: 20px; height: 20px; padding: 0; margin: 0 0 0 var(--space-2); cursor: pointer; }
+    .helper.error { color: var(--error); }
+    /* Button: inline-flex, gap-2, font-medium, rounded-lg, focus ring-2 ring-offset-2, disabled opacity-60 */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); font: inherit; font-weight: 500;
+           font-size: 16px; line-height: 24px; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-md);
+           cursor: pointer; text-decoration: none; margin-right: var(--space-2); transition: background-color .15s; }
+    .btn.sm { font-size: 14px; line-height: 20px; padding: 6px 12px; }
+    .btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gray-100), 0 0 0 4px var(--ring, var(--slate-500-ring)); }
+    .btn.primary { background: var(--btn-primary); color: var(--gray-100); --ring: var(--btn-primary-ring); }
+    .btn.primary:hover { background: var(--btn-primary-hover); } .btn.primary:active { background: var(--btn-primary-active); }
+    .btn.primary:disabled { background: var(--btn-primary-disabled); }
+    .btn.danger { background: var(--btn-danger); color: var(--gray-100); --ring: var(--btn-danger-ring); }
+    .btn.danger:hover { background: var(--btn-danger-hover); } .btn.danger:active { background: var(--btn-danger-active); }
+    .btn.danger:disabled { background: var(--btn-danger-disabled); }
+    .btn.outline { background: transparent; border: 2px solid var(--slate-300); color: var(--slate-700); }
+    .btn.outline:hover { background: var(--slate-50); } .btn.outline:active { background: var(--slate-100); }
+    .btn.outline:disabled { border-color: var(--slate-200); color: var(--slate-400); }
+    .btn.ghost { background: transparent; color: var(--slate-700); }
+    .btn.ghost:hover { background: var(--slate-100); } .btn.ghost:active { background: var(--slate-200); }
+    .btn.ghost:disabled { color: var(--slate-400); }
+    .btn:disabled { cursor: not-allowed; opacity: .6; }
+    .badge { display: inline-block; font-size: 12px; line-height: 16px; font-weight: 600; border-radius: var(--radius-full);
+             padding: var(--space-1) var(--space-2); border: 1px solid currentColor; }
+    .badge.success { color: var(--success); } .badge.warning { color: var(--warning); } .badge.error { color: var(--error); } .badge.info { color: var(--info); }
+    .banner { border: 2px solid var(--info); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4); background: var(--gray-100); }
+    .banner.success { border-color: var(--success); } .banner.error { border-color: var(--error); background: var(--error-surface); }
+    table { width: 100%; border-collapse: collapse; margin: var(--space-2) 0; font-size: 14px; line-height: 20px; }
+    th { text-align: left; background: var(--gray-200); color: var(--gray-700); font-weight: 600; padding: 12px var(--space-3); border-bottom: 2px solid var(--gray-400); }
+    td { padding: 12px var(--space-3); border-bottom: 1px solid var(--gray-300); }
+    th button { font: inherit; font-weight: 600; background: none; border: 0; color: inherit; padding: 0; cursor: pointer; }
+    td .btn { margin-right: 0; } td .btn + .btn { margin-left: var(--space-2); }
+    td.nowrap, td:last-child:has(.btn) { white-space: nowrap; }
+    table + .btn, table + .row { margin-top: var(--space-3); }
+    .field.inline { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 0; }
+    .field.inline label { margin: 0; }
+    tr.marked td { color: var(--gray-500); text-decoration: line-through; }
+    tr.staged td { background: var(--gray-200); }
+    .empty { border: 2px dashed var(--gray-400); border-radius: var(--radius-md); padding: var(--space-3); color: var(--gray-600); text-align: center; margin-top: var(--space-3); }
+    .dialog { background: var(--gray-100); border: 1px solid var(--gray-400); border-radius: var(--radius-xl); padding: var(--space-4); max-width: 34rem; margin-bottom: var(--space-4); }
+    .dialog h3:first-child { margin-top: 0; }
+    .drawer { background: var(--gray-100); border: 2px solid var(--primary); border-radius: var(--radius-xl); padding: var(--space-4); }
+    dl { display: grid; grid-template-columns: 12rem 1fr; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
+    dt { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--gray-700); } dd { margin: 0; }
+    .row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; margin-bottom: var(--space-3); }
+    .row > .subtitle { line-height: 44px; }
+    .row > .btn { margin-right: 0; height: 44px; }
+    .row > .btn.sm { height: 44px; }
+    .row .field { margin-bottom: 0; }
+    .actions { margin-top: var(--space-4); }
   </style>
 </head>
 <body>
   <!-- UX-GLA-001. REQ-GLA-001, 002, 003, 004, 006, 007, 008, 013, 014, 035. AC-GLA-001, 002, 003, 006..009, 011..013, 022, 023, 056, 057. API: createAccount, getAccount, updateAccount -->
+  <!-- Fiserv Design System components used (data-ds attributes): Card, Input Field, Select & Dropdown, Button, Alert / Banner, Data Table (Basic) -->
   <h1>Create account / Edit account</h1>
   <div class="state-note">Showing: populated create form with validation errors after submit. Other states:
     loading (skeleton while the account loads in edit mode), empty (not applicable to a blank create form),
     error (banner for 500, form values kept), forbidden (reserved, unreachable in this phase: no authorization, spec Q-001).
     Edit mode: Account ID and Account Type are read-only; Save sends If-Match; a 409 shows "changed by someone else" with a Reload action.</div>
 
-  <div class="summary" role="alert">2 problems need fixing. (1) Account ID. (2) Category.</div>
+  <div class="banner error" role="alert" data-ds="Alert / Banner"><strong>2 problems need fixing.</strong> (1) Account ID. (2) Category.</div>
 
-  <fieldset>
-    <legend>Account</legend>
-    <label for="id">Account ID</label>
-    <input id="id" value="1000-777-01" aria-describedby="id-hint id-err">
-    <div id="id-hint" class="hint">Format: 4-3-2 digits separated by hyphens, e.g. 1000-100-01. Create only; read-only when editing.</div>
-    <div id="id-err" class="err">Account ID does not match segment format. Expected format: 9999-999-99 (segment Department '777' is not an allowed value).</div>
+  <div class="card" data-ds="Card">
+    <h2>Account</h2>
+    <div class="field"><label for="id">Account ID</label><input class="tf error" id="id" value="1000-777-01" aria-describedby="id-hint id-err" data-ds="Input Field"><div class="helper" id="id-hint">Format: 4-3-2 digits separated by hyphens, e.g. 1000-100-01. Create only; read-only when editing.</div><div class="helper error" id="id-err">Account ID does not match segment format. Expected format: 9999-999-99 (segment Department '777' is not an allowed value).</div></div>
+    <div class="field"><label for="desc">Description</label><input class="tf" id="desc" value="Operating cash" data-ds="Input Field"></div>
+    <div class="field"><label for="type">Account type</label><select class="tf" id="type" aria-describedby="type-hint" data-ds="Select &amp; Dropdown"><option>Financial</option><option>Statistical</option></select><div class="helper" id="type-hint">Permanent after the first save. Read-only when editing.</div></div>
+    <div class="field"><label for="cat">Category</label><select class="tf error" id="cat" aria-describedby="cat-err" data-ds="Select &amp; Dropdown"><option>Statistical</option></select><div class="helper error" id="cat-err">Category 'Statistical' is not valid for a Financial account. Allowed: Asset, Liability, Equity, Revenue, Expense.</div></div>
+    <div class="field"><label for="cur">Currency</label><select class="tf" id="cur" data-ds="Select &amp; Dropdown"><option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option></select></div>
+    <div class="field"><label for="st">Status</label><select class="tf" id="st" aria-describedby="st-hint" data-ds="Select &amp; Dropdown"><option>Active</option><option>Hold</option><option>Inactive</option><option>Template</option></select><div class="helper" id="st-hint">Template can only be chosen when creating; it never changes afterwards.</div></div>
+    <div class="field"><label for="just">Status justification (edit mode, shown only when the status changes)</label>
+      <textarea class="tf" id="just" rows="3" maxlength="500" aria-describedby="just-hint" data-ds="Input Field">Under review by finance</textarea>
+      <div class="helper" id="just-hint">Required, 1 to 500 characters.</div></div>
+    <div class="field"><label for="bt">Balance type (Financial only; set at creation, read-only when editing)</label><select class="tf" id="bt" data-ds="Select &amp; Dropdown"><option>BalanceForward</option><option>Periodic</option></select></div>
+    <div class="field"><label for="nb">Normal balance (Financial only; set at creation, read-only when editing)</label><select class="tf" id="nb" data-ds="Select &amp; Dropdown"><option>Debit</option><option>Credit</option></select></div>
+  </div>
 
-    <label for="desc">Description</label>
-    <input id="desc" value="Operating cash">
-
-    <label for="type">Account type</label>
-    <select id="type"><option>Financial</option><option>Statistical</option></select>
-    <div class="hint">Permanent after the first save. Read-only when editing.</div>
-
-    <label for="cat">Category</label>
-    <select id="cat" aria-describedby="cat-err"><option>Statistical</option></select>
-    <div id="cat-err" class="err">Category 'Statistical' is not valid for a Financial account. Allowed: Asset, Liability, Equity, Revenue, Expense.</div>
-
-    <label for="cur">Currency</label>
-    <select id="cur"><option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option></select>
-
-    <label for="st">Status</label>
-    <select id="st"><option>Active</option><option>Hold</option><option>Inactive</option><option>Template</option></select>
-    <div class="hint">Template can only be chosen when creating; it never changes afterwards.</div>
-
-    <label for="just">Status justification (edit mode, shown only when the status changes)</label>
-    <textarea id="just" rows="3" maxlength="500">Under review by finance</textarea>
-    <div class="hint">Required, 1 to 500 characters.</div>
-
-    <label for="bt">Balance type (Financial only; set at creation, read-only when editing)</label>
-    <select id="bt"><option>BalanceForward</option><option>Periodic</option></select>
-
-    <label for="nb">Normal balance (Financial only; set at creation, read-only when editing)</label>
-    <select id="nb"><option>Debit</option><option>Credit</option></select>
-  </fieldset>
-
-  <fieldset>
-    <legend>Attributes (see UX-GLA-003)</legend>
-    <table>
-      <tr><th>Attribute type</th><th>Value</th><th>Actions</th></tr>
-      <tr><td>Department</td><td>Finance</td><td>Edit | Remove</td></tr>
+  <div class="card" data-ds="Card">
+    <h2>Attributes <span class="caption">(see UX-GLA-003)</span></h2>
+    <table data-ds="Data Table (Basic)">
+      <thead><tr><th>Attribute type</th><th>Value</th><th>Actions</th></tr></thead>
+      <tbody><tr><td>Department</td><td>Finance</td><td><button class="btn outline sm" type="button" data-ds="Button">Edit</button><button class="btn outline sm" type="button" data-ds="Button">Remove</button></td></tr></tbody>
     </table>
-    <button type="button">Add attribute</button>
-  </fieldset>
+    <button class="btn outline" type="button" data-ds="Button">Add attribute</button>
+  </div>
 
-  <button type="button">Save</button><button type="button">Cancel</button>
-  <span class="hint">Save is disabled while the request is in flight.</span>
+  <div class="actions"><button class="btn primary" type="button" data-ds="Button">Save</button><button class="btn outline" type="button" data-ds="Button">Cancel</button>
+    <span class="caption">Save is disabled while the request is in flight.</span></div>
 </body>
 </html>

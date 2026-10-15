@@ -2,41 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>UX-GLA-004 Delete confirmation and blocked-delete message - Wireframe</title>
+  <title>UX-GLA-004 Delete confirmation and blocked-delete message - Wireframe (Fiserv Design System)</title>
   <style>
-    body { font-family: sans-serif; color: #222; background: #fff; max-width: 900px; margin: 2rem auto; }
-    .state-note { border: 1px dashed #999; padding: .5rem; color: #666; font-size: .85rem; margin-bottom: 1rem; }
-    .dialog { border: 2px solid #333; padding: 1rem; margin-bottom: 1.5rem; width: 34rem; background: #f4f4f4; }
-    button { border: 1px solid #333; background: #ccc; padding: .4rem 1rem; margin-right: .5rem; }
-    ul { margin: .5rem 0; }
+    /* Fiserv Design System tokens (source: Fiserv Design System Components List, DESIGN_SYSTEM_GUIDE.md) */
+    :root {
+      --primary: #2759A1; --primary-light: #527AB4; --primary-dark: #1F4781;
+      --success: #00852C; --error: #FB0000; --warning: #F67300; --info: #3968C3;
+      --gray-100: #FFFFFF; --gray-200: #F6F6F6; --gray-300: #EEEEEE; --gray-400: #CCCCCC;
+      --gray-500: #999999; --gray-600: #666666; --gray-700: #333333; --gray-900: #1C1C1C;
+      --error-surface: #FFF5F5;
+      /* Button component tokens (ButtonShowcase.tsx: Tailwind blue/red/slate scale) */
+      --btn-primary: #155DFC; --btn-primary-hover: #1447E6; --btn-primary-active: #193CB8; --btn-primary-disabled: #8EC5FF; --btn-primary-ring: #2B7FFF;
+      --btn-danger: #E7000B; --btn-danger-hover: #C10007; --btn-danger-active: #9F0712; --btn-danger-disabled: #FFA2A2; --btn-danger-ring: #FB2C36;
+      --slate-50: #F8FAFC; --slate-100: #F1F5F9; --slate-200: #E2E8F0; --slate-300: #CAD5E2; --slate-400: #90A1B9; --slate-700: #314158; --slate-500-ring: #62748E;
+      --space-1: 4px; --space-2: 8px; --space-3: 16px; --space-4: 24px; --space-5: 32px; --space-8: 48px;
+      --radius-md: 8px; --radius-xl: 16px; --radius-full: 9999px;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: "Open Sans", system-ui, sans-serif; font-size: 16px; line-height: 22px; font-weight: 400;
+           color: var(--gray-900); background: var(--gray-200); max-width: 960px; margin: var(--space-4) auto; padding: 0 var(--space-3); }
+    h1 { font-size: 34px; line-height: 46px; font-weight: 700; margin: 0 0 var(--space-3); }
+    h2 { font-size: 24px; line-height: 34px; font-weight: 600; margin: 0 0 var(--space-3); }
+    h3 { font-size: 21px; line-height: 34px; font-weight: 400; margin: var(--space-3) 0 var(--space-2); }
+    .caption { font-size: 12px; line-height: 16px; color: var(--gray-600); }
+    .subtitle { font-size: 14px; line-height: 20px; }
+    .state-note { border: 2px dashed var(--gray-500); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3);
+                  font-size: 12px; line-height: 16px; color: var(--gray-600); background: var(--gray-100); margin-bottom: var(--space-4); }
+    .card { background: var(--gray-100); border: 1px solid var(--gray-300); border-radius: var(--radius-xl); padding: var(--space-4); margin-bottom: var(--space-4); }
+    .field { margin-bottom: var(--space-5); }
+    .field label, .label { display: block; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--gray-900); margin-bottom: var(--space-2); }
+    .tf { display: block; width: 100%; max-width: 28rem; font: inherit; font-size: 16px; color: var(--gray-900); background-color: var(--gray-100);
+          border: 2px solid var(--gray-400); border-radius: var(--radius-xl); padding: 12px var(--space-3); line-height: 24px; }
+    .tf:hover { border-color: var(--primary-light); }
+    .tf:focus { outline: 2px solid rgba(39,89,161,.2); border-color: var(--primary); }
+    .tf[readonly], .tf.readonly { background-color: var(--gray-200); color: var(--gray-600); }
+    .tf.error { border-color: var(--error); background-color: var(--error-surface); color: var(--error); }
+    .tf.sm.wide { width: 20rem; }
+    .tf.sm { padding: 8px 12px; font-size: 14px; line-height: 24px; height: 44px; max-width: none; width: auto; }
+    .helper { font-size: 14px; line-height: 20px; color: var(--gray-600); margin-top: var(--space-2); }
+
+    /* Trailing icon (Text Field spec: icon right-3 = 12px from the border, input pr-10 = 40px, icon 20px / 16px small) */
+    select.tf { appearance: none; -webkit-appearance: none; padding-right: 40px; background-repeat: no-repeat;
+      background-position: right 12px center; background-size: 20px 20px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+    select.tf.sm { padding-right: 40px; background-size: 16px 16px; }
+    select.tf.error { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FB0000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+    select.tf:disabled { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23CCCCCC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+    input.tf[type="date"] { padding-right: 12px; }
+    input.tf[type="date"]::-webkit-calendar-picker-indicator { width: 20px; height: 20px; padding: 0; margin: 0 0 0 var(--space-2); cursor: pointer; }
+    .helper.error { color: var(--error); }
+    /* Button: inline-flex, gap-2, font-medium, rounded-lg, focus ring-2 ring-offset-2, disabled opacity-60 */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); font: inherit; font-weight: 500;
+           font-size: 16px; line-height: 24px; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-md);
+           cursor: pointer; text-decoration: none; margin-right: var(--space-2); transition: background-color .15s; }
+    .btn.sm { font-size: 14px; line-height: 20px; padding: 6px 12px; }
+    .btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--gray-100), 0 0 0 4px var(--ring, var(--slate-500-ring)); }
+    .btn.primary { background: var(--btn-primary); color: var(--gray-100); --ring: var(--btn-primary-ring); }
+    .btn.primary:hover { background: var(--btn-primary-hover); } .btn.primary:active { background: var(--btn-primary-active); }
+    .btn.primary:disabled { background: var(--btn-primary-disabled); }
+    .btn.danger { background: var(--btn-danger); color: var(--gray-100); --ring: var(--btn-danger-ring); }
+    .btn.danger:hover { background: var(--btn-danger-hover); } .btn.danger:active { background: var(--btn-danger-active); }
+    .btn.danger:disabled { background: var(--btn-danger-disabled); }
+    .btn.outline { background: transparent; border: 2px solid var(--slate-300); color: var(--slate-700); }
+    .btn.outline:hover { background: var(--slate-50); } .btn.outline:active { background: var(--slate-100); }
+    .btn.outline:disabled { border-color: var(--slate-200); color: var(--slate-400); }
+    .btn.ghost { background: transparent; color: var(--slate-700); }
+    .btn.ghost:hover { background: var(--slate-100); } .btn.ghost:active { background: var(--slate-200); }
+    .btn.ghost:disabled { color: var(--slate-400); }
+    .btn:disabled { cursor: not-allowed; opacity: .6; }
+    .badge { display: inline-block; font-size: 12px; line-height: 16px; font-weight: 600; border-radius: var(--radius-full);
+             padding: var(--space-1) var(--space-2); border: 1px solid currentColor; }
+    .badge.success { color: var(--success); } .badge.warning { color: var(--warning); } .badge.error { color: var(--error); } .badge.info { color: var(--info); }
+    .banner { border: 2px solid var(--info); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4); background: var(--gray-100); }
+    .banner.success { border-color: var(--success); } .banner.error { border-color: var(--error); background: var(--error-surface); }
+    table { width: 100%; border-collapse: collapse; margin: var(--space-2) 0; font-size: 14px; line-height: 20px; }
+    th { text-align: left; background: var(--gray-200); color: var(--gray-700); font-weight: 600; padding: 12px var(--space-3); border-bottom: 2px solid var(--gray-400); }
+    td { padding: 12px var(--space-3); border-bottom: 1px solid var(--gray-300); }
+    th button { font: inherit; font-weight: 600; background: none; border: 0; color: inherit; padding: 0; cursor: pointer; }
+    td .btn { margin-right: 0; } td .btn + .btn { margin-left: var(--space-2); }
+    td.nowrap, td:last-child:has(.btn) { white-space: nowrap; }
+    table + .btn, table + .row { margin-top: var(--space-3); }
+    .field.inline { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 0; }
+    .field.inline label { margin: 0; }
+    tr.marked td { color: var(--gray-500); text-decoration: line-through; }
+    tr.staged td { background: var(--gray-200); }
+    .empty { border: 2px dashed var(--gray-400); border-radius: var(--radius-md); padding: var(--space-3); color: var(--gray-600); text-align: center; margin-top: var(--space-3); }
+    .dialog { background: var(--gray-100); border: 1px solid var(--gray-400); border-radius: var(--radius-xl); padding: var(--space-4); max-width: 34rem; margin-bottom: var(--space-4); }
+    .dialog h3:first-child { margin-top: 0; }
+    .drawer { background: var(--gray-100); border: 2px solid var(--primary); border-radius: var(--radius-xl); padding: var(--space-4); }
+    dl { display: grid; grid-template-columns: 12rem 1fr; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); }
+    dt { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--gray-700); } dd { margin: 0; }
+    .row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; margin-bottom: var(--space-3); }
+    .row > .subtitle { line-height: 44px; }
+    .row > .btn { margin-right: 0; height: 44px; }
+    .row > .btn.sm { height: 44px; }
+    .row .field { margin-bottom: 0; }
+    .actions { margin-top: var(--space-4); }
   </style>
 </head>
 <body>
   <!-- UX-GLA-004. REQ-GLA-024, 025, 026. AC-GLA-038..042. API: deleteAccount -->
+  <!-- Fiserv Design System components used (data-ds attributes): Modal & Dialog, Alert / Banner, Button -->
   <h1>Delete account dialog</h1>
   <div class="state-note">Showing: blocked-delete state (populated). Other states: loading (buttons disabled while the request runs),
     empty (not applicable; step one is the confirmation below), error (banner inside the dialog for 500), forbidden (reserved, unreachable in this phase, spec Q-001).
     A 204 closes the dialog and moves to search with a success notice.</div>
 
   <h2>Step 1: confirmation</h2>
-  <div class="dialog" role="alertdialog" aria-labelledby="t1" aria-describedby="d1">
+  <div class="dialog" role="alertdialog" aria-labelledby="t1" aria-describedby="d1" data-ds="Modal &amp; Dialog">
     <h3 id="t1">Delete account 1000-300-01?</h3>
     <p id="d1">This cannot be undone.</p>
-    <button type="button">Delete</button><button type="button">Cancel</button>
+    <button class="btn danger" type="button" data-ds="Button">Delete</button><button class="btn outline" type="button" data-ds="Button">Cancel</button>
   </div>
 
   <h2>Step 2 (409): blocked</h2>
-  <div class="dialog" role="alertdialog" aria-labelledby="t2" aria-describedby="d2">
+  <div class="dialog" role="alertdialog" aria-labelledby="t2" aria-describedby="d2" data-ds="Modal &amp; Dialog">
     <h3 id="t2">Cannot delete account 1000-200-01</h3>
-    <p id="d2">Cannot delete account '1000-200-01'. It has 10001 posted transaction(s).</p>
-    <p>Blocking items:</p>
+    <div class="banner error" id="d2" data-ds="Alert / Banner">Cannot delete account '1000-200-01'. It has 10001 posted transaction(s).</div>
+    <p class="label">Blocking items:</p>
     <ul>
       <li>Posted transactions: 10001</li>
       <li>Budgets: 2</li>
       <li>Group memberships: 1</li>
     </ul>
     <p>Set the account status to Inactive instead of deleting it.</p>
-    <button type="button">Set status to Inactive instead</button><button type="button">Close</button>
+    <button class="btn primary" type="button" data-ds="Button">Set status to Inactive instead</button><button class="btn outline" type="button" data-ds="Button">Close</button>
   </div>
 </body>
 </html>

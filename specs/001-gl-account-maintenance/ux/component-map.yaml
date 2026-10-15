@@ -1,7 +1,11 @@
 # Component map for GL Account Maintenance and Inquiry.
-# ADR-002: Angular + Angular Material (src/GlAccounts.Web). `existing` = provided by Angular Material
-# (the repository's chosen component library); `gap` = no Material equivalent, built as a thin wrapper
-# composed from Material and semantic HTML (needs human review).
+# Design system: Fiserv Design System Components List (Figma Make file; DESIGN_SYSTEM_GUIDE.md, FIGMA_COMPONENT_GUIDE.md).
+# `existing` = the component is verified in that design system (catalog entry, showcase or documented state/variant;
+#              the catalog name is given in the comment). `gap` = not verified in the design system -> needs human review.
+# Wireframes are styled with the Fiserv tokens and carry data-ds="<catalog name>" attributes for the components above.
+# NOTE (needs decision): the design system source is React/Tailwind (Figma Make). ADR-002 chose Angular + Angular Material
+#   for src/GlAccounts.Web. `existing` here means "exists in the Fiserv DS", not "available in Angular Material".
+#   Reconcile with an ADR before implementation (frontend.md: no second component library without an ADR).
 # "forbidden" is required by the UX gate but is reserved and unreachable in this phase (spec Q-001: no authorization).
 screens:
   - id: UX-GLA-001
@@ -11,15 +15,15 @@ screens:
     requirements: [REQ-GLA-001, REQ-GLA-002, REQ-GLA-003, REQ-GLA-004, REQ-GLA-006, REQ-GLA-007, REQ-GLA-008, REQ-GLA-013, REQ-GLA-014, REQ-GLA-035]
     components:
       - {name: PageHeader, source: gap}
-      - {name: TextField, source: existing}
-      - {name: Select, source: existing}
-      - {name: ReadOnlyField, source: gap}
-      - {name: TextArea, source: existing}
-      - {name: FieldError, source: existing}
+      - {name: TextField, source: existing}          # Text Field / Input Field
+      - {name: Select, source: existing}             # Select & Dropdown
+      - {name: ReadOnlyField, source: existing}      # Text Field "Read only" state
+      - {name: TextArea, source: gap}                # multi-line variant not verified
+      - {name: FieldError, source: existing}         # Text Field "Error" state + helper text
       - {name: ErrorSummary, source: gap}
-      - {name: Button, source: existing}
-      - {name: ErrorBanner, source: gap}
-      - {name: SuccessNotice, source: existing}
+      - {name: Button, source: existing}             # Button
+      - {name: ErrorBanner, source: gap}             # no verified Alert/Banner component
+      - {name: SuccessNotice, source: gap}           # no verified Toast/Alert component
     states: [loading, empty, populated, error, forbidden]
   - id: UX-GLA-002
     name: Account inquiry
@@ -29,13 +33,13 @@ screens:
     components:
       - {name: PageHeader, source: gap}
       - {name: DescriptionList, source: gap}
-      - {name: StatusBadge, source: gap}
-      - {name: DataTable, source: existing}
+      - {name: StatusBadge, source: existing}        # Badge & Chip (status indicators)
+      - {name: DataTable, source: existing}          # Data Table (Basic)
       - {name: EmptyState, source: gap}
-      - {name: LinkButton, source: existing}
-      - {name: Button, source: existing}
+      - {name: LinkButton, source: gap}              # link variant of Button not verified
+      - {name: Button, source: existing}             # Button
       - {name: ErrorBanner, source: gap}
-      - {name: SuccessNotice, source: existing}
+      - {name: SuccessNotice, source: gap}
     states: [loading, empty, populated, error, forbidden]
   - id: UX-GLA-003
     name: Attribute panel
@@ -43,10 +47,10 @@ screens:
     api_operations: [API-GLA-005, API-GLA-006, API-GLA-007]
     requirements: [REQ-GLA-009, REQ-GLA-010, REQ-GLA-011, REQ-GLA-012]
     components:
-      - {name: EditableTable, source: gap}
-      - {name: Select, source: existing}
-      - {name: FieldError, source: existing}
-      - {name: Button, source: existing}
+      - {name: EditableTable, source: existing}      # Advanced Data Table (row edit mode)
+      - {name: Select, source: existing}             # Select & Dropdown
+      - {name: FieldError, source: existing}         # Text Field "Error" state + helper text
+      - {name: Button, source: existing}             # Button
       - {name: EmptyState, source: gap}
     states: [loading, empty, populated, error, forbidden]
   - id: UX-GLA-004
@@ -55,9 +59,9 @@ screens:
     api_operations: [API-GLA-004]
     requirements: [REQ-GLA-024, REQ-GLA-025, REQ-GLA-026]
     components:
-      - {name: AlertDialog, source: existing}
+      - {name: AlertDialog, source: existing}        # Modal & Dialog
       - {name: BlockerList, source: gap}
-      - {name: Button, source: existing}
+      - {name: Button, source: existing}             # Button
       - {name: ErrorBanner, source: gap}
     states: [loading, empty, populated, error, forbidden]
   - id: UX-GLA-005
@@ -68,13 +72,13 @@ screens:
     components:
       - {name: PageHeader, source: gap}
       - {name: FilterBar, source: gap}
-      - {name: DateRangeField, source: existing}
-      - {name: DataTable, source: existing}
-      - {name: SortableColumnHeader, source: existing}
-      - {name: Pagination, source: existing}
-      - {name: DetailPanel, source: gap}
+      - {name: DateRangeField, source: existing}     # Date Picker (single date, range)
+      - {name: DataTable, source: existing}          # Advanced Data Table
+      - {name: SortableColumnHeader, source: existing}  # Advanced Data Table (sorting)
+      - {name: Pagination, source: existing}         # Advanced Data Table (pagination)
+      - {name: DetailPanel, source: existing}        # Popover & Drawer / Advanced Data Table view panel
       - {name: EmptyState, source: gap}
-      - {name: Button, source: existing}
+      - {name: Button, source: existing}             # Button
       - {name: ErrorBanner, source: gap}
     states: [loading, empty, populated, error, forbidden]
   - id: UX-GLA-006
@@ -84,13 +88,13 @@ screens:
     requirements: [REQ-GLA-032, REQ-GLA-033, REQ-GLA-034]
     components:
       - {name: PageHeader, source: gap}
-      - {name: SearchField, source: existing}
-      - {name: Select, source: existing}
-      - {name: DataTable, source: existing}
-      - {name: Pagination, source: existing}
+      - {name: SearchField, source: existing}        # Input Field (search & filters in Advanced Data Table)
+      - {name: Select, source: existing}             # Select & Dropdown
+      - {name: DataTable, source: existing}          # Advanced Data Table
+      - {name: Pagination, source: existing}         # Advanced Data Table (pagination)
       - {name: EmptyState, source: gap}
-      - {name: TextField, source: existing}
-      - {name: FieldError, source: existing}
-      - {name: Button, source: existing}
+      - {name: TextField, source: existing}          # Text Field / Input Field
+      - {name: FieldError, source: existing}         # Text Field "Error" state + helper text
+      - {name: Button, source: existing}             # Button
       - {name: ErrorBanner, source: gap}
     states: [loading, empty, populated, error, forbidden]

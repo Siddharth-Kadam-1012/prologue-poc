@@ -1,254 +1,433 @@
 # Tasks: GL Account Maintenance and Inquiry
 
-**Input**: `specs/001-gl-account-maintenance/` (spec.md, plan.md, data-model.md, research.md, quickstart.md, contracts/openapi.yaml, ux/)
+**Feature**: 001-gl-account-maintenance  
+**Input**: `specs/001-gl-account-maintenance/` — spec.md, plan.md, data-model.md, contracts/openapi.yaml, research.md  
+**Updated**: 2026-10-16 — Angular + TypeScript frontend added (Q-003, Jaymin Trivedi)
 
-**Prerequisites**: specification, clarification, architecture, api_contract and ux stages approved. This file is the `task_decomposition` stage.
+**Prerequisites**: All design artifacts approved. OpenAPI contract gate passed.
 
-**Tests**: Required. Evidence rule (`AGENTS.md`): tests are derived from acceptance criteria. Every slice task writes its own unit and integration tests and puts each AC ID in a test name or comment so `sdlc.cs traceability` can derive coverage. The contract (`contracts/openapi.yaml`) is authoritative (ADR-001); implementation conforms to it and never the other way round.
+**Tests**: Test tasks included — spec requires all 17 ACs covered (SC-006).
 
-**Data layer**: stub data only. In-memory, thread-safe, deterministic, synthetic. No database, ORM, migrations, connection strings or generic `IRepository<T>`. Say "stub data only", never "persisted".
-
-**Authentication and authorization**: none in this phase (Q-001). Do not add any. `X-User-Id` is an optional, unverified audit identifier (A-008).
-
-## Format: `- [ ] T### [P?] [Story] Description with path`
-
-- **[P]**: can run in parallel with other [P] tasks of the same phase (different files, no dependency on an incomplete task). In this repository slices are implemented **one task at a time** with approval before each, so [P] documents independence only.
-- **[US#]**: spec user story (US1 = US-AM-001 ... US12 = US-AM-012).
-- Task IDs map to traceability IDs: `T003` is `TASK-GLA-003`.
-- Mark `[X]` only when `build` and `unit_tests` both exited 0 through `sdlc.cs evidence`.
-
-## Story index
-
-| Label | Spec story | Priority | Slice task |
-|---|---|---|---|
-| US1 | US-AM-001 Create with segment validation | P1 | T003, T004 |
-| US2 | US-AM-002 Modify editable fields | P1 | T005 |
-| US3 | US-AM-003 Classification | P1 | T003 |
-| US4 | US-AM-004 Attributes | P2 | T009 |
-| US5 | US-AM-005 Status | P1 | T004, T005 |
-| US6 | US-AM-006 Groups | P2 | T010 |
-| US7 | US-AM-007 Period summary | P1 | T007 |
-| US8 | US-AM-008 Transactions | P1 | T008 |
-| US9 | US-AM-009 Protected deletion | P1 | T006 |
-| US10 | US-AM-010 COA validation | P1 | T003, T005 |
-| US11 | US-AM-011 Audit trail (access control deferred) | P1 | T002, T003, T005, T009 |
-| US12 | US-AM-012 Templates | P3 | T003, T011 |
+**Stack**: Backend = .NET 10 ASP.NET Core 10 (six-project Clean Architecture, stub data). Frontend = Angular + TypeScript SPA.
 
 ---
 
-## Phase 1: Setup
+## Format: `[ID] [P?] [Story] Description`
 
-**Purpose**: create the projects. No application code exists yet (repository baseline).
-
-- [X] T001 Create the solution and projects per plan.md "Source layout": `GlAccounts.sln` (use `dotnet new sln --format sln`), `src/GlAccounts.Api/GlAccounts.Api.csproj` (`net10.0`, minimal API web project, `Program.cs` with `public partial class Program`), `tests/GlAccounts.Api.UnitTests/` and `tests/GlAccounts.Api.IntegrationTests/` (xUnit; the integration project references `Microsoft.AspNetCore.Mvc.Testing`). Add `Directory.Build.props` with `<Nullable>enable</Nullable>`, `<ImplicitUsings>enable</ImplicitUsings>`, `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`. Add `.gitignore` entries for `bin/` and `obj/` if missing. Do not add FluentValidation, MediatR, an ORM or any auth package. Done when `dotnet build --no-restore -warnaserror` and `dotnet test --no-build` exit 0 on the empty projects (first `dotnet restore`). Requirements: none directly (plan "Technical Context"). Record both runs with `sdlc.cs evidence`.
-
-**Checkpoint**: solution builds with zero warnings.
+- **[P]**: Parallelizable (different files, no shared dependencies)
+- **[Story]**: Which user story this belongs to (US1–US12)
 
 ---
 
-## Phase 2: Foundational (blocks every slice)
+## Phase 1: Backend Setup (Solution Scaffold)
 
-**Purpose**: shared domain, error mapping, audit, user-id, ETag and the complete seed data. Only what at least three slices share lives in `Common/` and `Domain/`.
+**Purpose**: Create the six-project Clean Architecture solution, build config, CORS, and verify the empty build passes.
 
-- [X] T002 Implement the foundation in `src/GlAccounts.Api/` (plan "F0 Foundation"; requirements NFR-GLA-007, NFR-GLA-008, REQ-GLA-030/031 plumbing, D-01, D-02, D-04, D-10, D-11, D-12):
-  - `Domain/`: `Account` (fields and constraints from data-model.md, quoted: accountId string <= 32 chars; description 1..200; accountType `Financial|Statistical`; category `Asset|Liability|Equity|Revenue|Expense` for Financial, `Statistical` for Statistical; currencyId `USD|EUR|GBP|JPY`; status `Active|Hold|Inactive|Template`; balanceType `BalanceForward|Periodic` and normalBalance `Debit|Credit`, required for Financial and not allowed for Statistical; createdDate; version token; derived `eligibleForPosting` true only for `Active`), `AccountAttribute` (attributeId, attributeTypeId, attributeValueId), `AccountId` parsing into three numeric segments of 4, 3, 2 digits joined by `-`, total <= 32, each segment checked against its seeded value list (segments named Main, Department, Sub), status rules (Active/Hold/Inactive free among each other, Template never changes to or from another status), category rules.
-  - `Common/`: ProblemDetails mapping (`HttpValidationProblemDetails` for 400, `ProblemDetails` for 404/409/500, media type `application/problem+json`, no internal details in 500), `X-User-Id` reader (`unknown` when absent), ETag helper (opaque version token, strong ETag in quotes, `If-Match` compare), append-only `IAuditStore` + in-memory implementation with entry kinds `Created`, `FieldChanged`, `StatusChanged`, `AttributeAdded`, `AttributeChanged`, `AttributeRemoved` and fields auditId, accountId, kind, userId, timestamp, field, before, after, justification. **No read endpoint for audit**; expose a read method only on the test-visible store interface.
-  - `Features/GlAccounts/StubData/`: deterministic seed data with fixed IDs and timestamps for every state in plan.md "Seed data states", including `1000-100-01` (Active Financial, created 2025-01-01, attribute `att-1` dept/finance and a second attribute, member of the nested groups `grp-revenue-na` under `grp-revenue`, balances over several periods and years of 2025 and an `Original` budget version; it is therefore not deletable), a separate dependency-free Active Financial account for the successful delete, `1000-200-01` with exactly 10,001 posted transactions (counts precomputed for the dependency check), `9000-100-01` Template, an account with only unposted transactions, accounts blocked by a budget, by an allocation, by a group, one with several blocker types, Hold, Inactive and Statistical accounts, an account in no group, an account without balances or transactions, the attribute catalog (types and values, e.g. `dept`/`finance`, `region`/`emea`), segment value lists (Main includes 1000, 3000, 6000, 9000; Department includes 100, 200, 300; Sub includes 01, 02, so the contract examples 1000-100-02 and 6000-100-01 are valid and unused, while 777 is not an allowed Department value), groups with parent chains. Stores are read-only for other-module data (Q-008) and thread-safe for accounts and audit.
-  - `AddGlAccountsFeature` DI extension registering all stores (D-12); `Program.cs` maps nothing yet except the ProblemDetails pipeline.
-  - Unit tests for `AccountId` parsing (valid, wrong segment count, length, separator, unknown value), category rules, status rules, eligibility, ETag helper, audit store append-only behaviour (NFR-GLA-007), and a test that scans seed data for real-looking names, emails or identifiers (NFR-GLA-008, synthetic only). Reference NFR IDs in test names.
-  - Done when build (`-warnaserror`) and tests exit 0 via `sdlc.cs evidence`.
+- [x] T001 Create `GlAccounts.sln` and six-project structure: `src/GlAccounts.Api`, `src/GlAccounts.Application`, `src/GlAccounts.Domain`, `src/GlAccounts.Infrastructure`, `src/GlAccounts.Contracts`, `src/GlAccounts.Tests` (run `dotnet new sln` + `dotnet new webapi/classlib/xunit` per project)
+- [x] T002 Create `Directory.Build.props` at repo root: `<TargetFramework>net10.0</TargetFramework>`, `<Nullable>enable</Nullable>`, `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`, `<ImplicitUsings>enable</ImplicitUsings>`
+- [x] T003 Add project references per dependency graph: Api→Application→Domain; Infrastructure→Application+Domain; Tests→all; Contracts standalone
+- [x] T004 [P] Add NuGet packages: `FluentValidation.AspNetCore` to Api+Application; `xUnit` + `FluentAssertions` + `Microsoft.AspNetCore.Mvc.Testing` to Tests
+- [x] T005 Configure `Program.cs` with minimal API host, service registration stubs, Swagger/OpenAPI middleware, and CORS policy allowing Angular dev origin (`http://localhost:4200`)
+- [x] T006 Verify empty build: `dotnet build --no-restore -warnaserror` exits 0
 
-**Checkpoint**: foundation ready; slices can be implemented one at a time.
-
----
-
-## Phase 3: US1 / US3 Create a GL account (Priority: P1, MVP)
-
-**Goal**: create accounts from a full Account ID with classification validation.
-**Independent test**: create one account with valid segments and read nothing else; repeat with an invalid segment, a duplicate and an invalid classification.
-
-- [X] T003 [US1] Slice S01 CreateAccount in `src/GlAccounts.Api/Features/GlAccounts/CreateAccount/` (Endpoint, Command, Handler, Validator, Response) for `POST /api/gl/accounts` (operationId `createAccount`, API-GLA-001 / API-GLA-016 without the template path):
-  - Requirements: REQ-GLA-001, 002, 003, 007, 008, 027, 030, 032. NFR-GLA-001 (<= 2 s) and NFR-GLA-006 (errors returned after submit; no validation-only operation).
-  - Acceptance criteria to make testable: AC-GLA-001, 002, 003, 011, 012, 013, 043, 044, 049, 052, 057.
-  - Behaviour (quote the contract): 201 with `Location` and `ETag` and an `Account` body (segments, `eligibleForPosting`, `attributes` empty); 400 `HttpValidationProblemDetails` with field-level errors: Account ID format message "Account ID does not match segment format. Expected format: {format}" naming each invalid segment; one actionable message per missing or invalid field; Financial requires balanceType and normalBalance; Statistical requires category `Statistical` and forbids both; 409 "Account ID '{id}' already exists. Please use a unique ID." (D-02); status `Template` creates a template (AC-GLA-052); audit `Created` with `X-User-Id` or `unknown` and a timestamp (AC-GLA-049). Validation runs in the handler path so a direct request is rejected exactly as through any client (AC-GLA-044).
-  - The request type accepts `attributes` and `templateAccountId` as in the contract, but processing of those two fields belongs to T009 and T011. Until then they are not processed; this is a known incomplete state that ends when T009 and T011 are done, and the contract is not claimed as fully implemented before then.
-  - Tests: unit (validator, handler) and integration (`WebApplicationFactory`, fresh seeded store per test) with AC IDs in names or comments.
-
-**Checkpoint**: accounts can be created and rejected correctly.
+**Checkpoint**: `dotnet build` exits 0. CORS configured for Angular SPA.
 
 ---
 
-## Phase 4: US1 / US5 Get an account (P1)
+## Phase 2: Foundational (Domain + Ports + Stubs)
 
-- [X] T004 [US1] [US5] Slice S02 GetAccount in `src/GlAccounts.Api/Features/GlAccounts/GetAccount/` for `GET /api/gl/accounts/{id}` (operationId `getAccount`, API-GLA-002):
-  - Requirements: REQ-GLA-005, 013. NFR-GLA-002 (<= 1 s).
-  - Acceptance criteria: AC-GLA-004, 005, 020, 021.
-  - Behaviour: 200 with `Account` body and `ETag`; `eligibleForPosting` true only for status `Active`; for Hold, Inactive and Template it is false; 404 `ProblemDetails` "Account '{id}' was not found." with no data leaked; id longer than 32 characters returns 400.
-  - Tests: unit and integration for each seeded status (Active, Hold, Inactive, Template) plus unknown ID.
+**Purpose**: Core domain types, port interfaces, and in-memory stub stores. MUST be complete before any endpoint or Angular service slice.
 
-**Checkpoint**: read-after-write works for created accounts.
+### Domain Layer (`src/GlAccounts.Domain/`)
 
----
+- [x] T007 [P] Create enums in `src/GlAccounts.Domain/Enums/`: `AccountType.cs` (Financial, Statistical), `AccountStatus.cs` (Active, Hold, Inactive, Template), `BalanceType.cs` (BalanceForward, Periodic), `NormalBalance.cs` (Debit, Credit)
+- [x] T008 [P] Create `src/GlAccounts.Domain/Entities/GlAccount.cs` with fields: `AccountId` (string, max 32), `Description` (string, max 200), `AccountType` (enum, permanent), `Category` (string, max 50), `Status` (AccountStatus), `BalanceType`, `NormalBalance`, `CurrencyId` (string?, max 10), `CreatedDate` (DateOnly), `CreatedBy` (string, max 100)
+- [x] T009 [P] Create `src/GlAccounts.Domain/Entities/AccountAttribute.cs` with fields: `AttributeId` (string/GUID), `AccountId` (string), `AttributeTypeId` (string, max 50), `AttributeTypeDescription` (string), `AttributeValueId` (string, max 50), `AttributeValueDescription` (string)
+- [x] T010 [P] Create `src/GlAccounts.Domain/Rules/ClassificationRules.cs` — static method `IsValidCategoryForType(string category, AccountType type) → bool` (Financial: Asset/Liability/Equity/Revenue/Expense; Statistical: any non-Financial category)
+- [x] T011 [P] Create `src/GlAccounts.Domain/Rules/StatusRules.cs` — static method `CanBeUsedInTransaction(AccountStatus status) → bool` (Active = true; Hold/Inactive/Template = false)
+- [x] T012 [P] Create `src/GlAccounts.Domain/Exceptions/DomainException.cs` — sealed exception with `string Message` property
 
-## Phase 5: US2 / US5 / US10 / US11 Update an account (P1)
+### Application Ports (`src/GlAccounts.Application/Abstractions/Persistence/`)
 
-- [X] T005 [US2] [US5] [US10] [US11] Slice S03 UpdateAccount in `src/GlAccounts.Api/Features/GlAccounts/UpdateAccount/` for `PUT /api/gl/accounts/{id}` (operationId `updateAccount`, API-GLA-003); depends on T003 and T004:
-  - Requirements: REQ-GLA-004, 006, 007, 008, 014, 031, 035. NFR-GLA-003 (<= 1 s).
-  - Acceptance criteria: AC-GLA-006, 007, 008, 009, 010, 022, 023, 045, 050, 051 (status-change part), 056.
-  - Behaviour: editable fields only: description (1..200), category (valid for the stored accountType), currencyId (`USD|EUR|GBP|JPY`, change always allowed), status. `If-Match` is required: missing returns 400, stale returns 409 "The account was changed by someone else. Reload it and try again." and leaves the stored account unchanged (D-04, AC-GLA-056). `accountId` or `accountType` in the body with a value different from the stored one returns 400 naming the field and changes nothing (AC-GLA-008, 045). A changed status needs `statusJustification` of 1..500 characters (else 400); Active, Hold and Inactive move freely; a change to or from `Template` returns 400 and leaves the status unchanged (AC-GLA-023). Balance type and normal balance are not updatable. 404 for an unknown account. Response 200 with the new `Account` and a new `ETag`. Audit: one `FieldChanged` entry per changed field with before and after (AC-GLA-050) and one `StatusChanged` entry with justification (AC-GLA-051); nothing is audited when the request is rejected.
-  - `attributeChanges` is not processed here; T009 adds it.
-  - Tests: unit and integration, including two updates with the same ETag (second returns 409, first change kept).
+- [x] T013 [P] Create `IAccountStore.cs`: `GetByIdAsync`, `GetAllAsync`, `AddAsync`, `UpdateAsync`, `DeleteAsync`, `ExistsAsync`
+- [x] T014 [P] Create `IAccountAttributeStore.cs`: `GetByAccountIdAsync`, `GetByIdAsync`, `AddAsync`, `UpdateAsync`, `DeleteAsync`
+- [x] T015 [P] Create `IAccountGroupStore.cs`: `GetGroupsByAccountIdAsync`
+- [x] T016 [P] Create `IPeriodBalanceStore.cs`: `GetByAccountIdAsync` (with optional fiscalYear/period range filters)
+- [x] T017 [P] Create `ITransactionStore.cs`: `GetByAccountIdAsync` (with optional date range/status filters); `HasTransactionsForAccountAsync`
+- [x] T018 [P] Create `IAuditStore.cs`: `AppendAsync(AuditEntry entry)` — append-only; also create `AuditEntry` record type in `src/GlAccounts.Application/Abstractions/`
+- [x] T019 [P] Create `ISegmentFormatStore.cs`: `GetActiveFormatAsync()` returning segment definitions
 
-**Checkpoint**: accounts can be maintained safely under concurrency.
+### Infrastructure Stubs (`src/GlAccounts.Infrastructure/Persistence/`)
 
----
+- [x] T020 [P] Create `InMemoryAccountStore.cs` implementing `IAccountStore` — seed 7 accounts (fixed IDs: 01-100-1000 Cash, 01-100-2000 AR, 01-200-1000 AP, 01-100-3000 Inactive, 01-100-4000 Hold, 01-100-5000 Template, 01-200-2000 AccountWithTransactions)
+- [x] T021 [P] Create `InMemoryAccountAttributeStore.cs` implementing `IAccountAttributeStore` — empty seed
+- [x] T022 [P] Create `InMemoryAccountGroupStore.cs` implementing `IAccountGroupStore` — seed 1 group (GRP-001 "Current Assets" containing 01-100-1000 and 01-100-2000)
+- [x] T023 [P] Create `InMemoryPeriodBalanceStore.cs` implementing `IPeriodBalanceStore` — seed 4 period balance records for 01-100-1000 (FY2026 periods 1–4, fixed UUIDs)
+- [x] T024 [P] Create `InMemoryTransactionStore.cs` implementing `ITransactionStore` — seed 3 posted transactions for 01-200-2000 (TXN-001, TXN-002, TXN-003)
+- [x] T025 [P] Create `InMemoryAuditStore.cs` implementing `IAuditStore` — append-only `List<AuditEntry>` with thread-safe lock
+- [x] T026 [P] Create `InMemorySegmentFormatStore.cs` implementing `ISegmentFormatStore` — returns 3-segment format; validates accountId via regex `^\d{2}-\d{3}-\d{4}$`
+- [x] T027 [P] Create `IAttributeCatalogStore.cs` port + `InMemoryAttributeCatalogStore.cs` stub seeded with type REPORTING_UNIT (values: NORTH_REGION, SOUTH_REGION)
+- [x] T028 Create `InfrastructureServiceCollectionExtensions.cs` — registers all stub stores as singletons; wire into `Program.cs`
+- [x] T029 [P] Create domain unit tests: `src/GlAccounts.Tests/Unit/Domain/ClassificationRulesTests.cs` and `StatusRulesTests.cs`
+- [x] T030 Verify build + passing tests: `dotnet build -warnaserror` exits 0; `dotnet test` exits 0
 
-## Phase 6: US9 Protected deletion (P1)
-
-- [X] T006 [US9] Slice S04 DeleteAccount in `src/GlAccounts.Api/Features/GlAccounts/DeleteAccount/` for `DELETE /api/gl/accounts/{id}` (operationId `deleteAccount`, API-GLA-004); depends on T002 seed counts:
-  - Requirements: REQ-GLA-024, 025, 026. NFR-GLA-005 (dependency check <= 1 s, including the 10,001-transaction account). Business rules BR-FE-1-002, BR-BE-1-001, BR-GLA-011.
-  - Acceptance criteria: AC-GLA-038, 039, 040, 041, 042.
-  - Behaviour: one dependency check returns counts of posted transactions, unposted transactions, budgets, allocations and group memberships through a read-only store interface. All zero: 204 with no body and a later read returns 404. Any non-zero: 409 `DeleteBlockedProblemDetails` listing every non-zero blocker (`kind` one of `PostedTransactions`, `UnpostedTransactions`, `Budgets`, `Allocations`, `GroupMemberships`, with `count`), `detail` "Cannot delete account '{id}'. It has {N} posted transaction(s)." for posted transactions, and `suggestion` offering Inactive; the account still exists. 404 for unknown.
-  - Tests: one per blocker type, several blockers together, success, and a timing test for the large seed account that avoids fixed sleeps.
-
-**Checkpoint**: deletion is blocked correctly and quickly.
-
----
-
-## Phase 7: US7 Period summary (P1)
-
-- [X] T007 [US7] Slice S05 PeriodSummary in `src/GlAccounts.Api/Features/GlAccounts/PeriodSummary/` for `GET /api/gl/accounts/{id}/period-summary` (operationId `getPeriodSummary`, API-GLA-010) and `GET .../period-summary/export` (operationId `exportPeriodSummary`, API-GLA-011):
-  - Requirements: REQ-GLA-017, 018, 019.
-  - Acceptance criteria: AC-GLA-028, 029, 030, 031, 032.
-  - Behaviour: periods, years and budget versions per the `PeriodSummary` schema; query `fiscalYear` filters all three lists, `sortBy` in `fiscalYear|fiscalPeriod|balance` (default `fiscalPeriod`), `sortDirection` `asc|desc`; invalid values return 400; account without balances returns 200 with empty lists; unknown account returns 404. Export returns an `.xlsx` workbook (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `Content-Disposition`) with exactly the rows of the filtered and sorted view. Add the `ClosedXML` package (MIT) only in this slice (research.md); confirm it restores before using it.
-  - Tests: integration for filter, sort, empty, 404, and an export test that opens the workbook and compares rows to the JSON response.
+**Checkpoint**: Domain compiles, all ports defined, all stubs registered, domain unit tests pass.
 
 ---
 
-## Phase 8: US8 Transactions (P1)
+## Phase 3: User Story 1 — Create GL Account API (Priority: P1)
 
-- [X] T008 [US8] Slice S06 Transactions in `src/GlAccounts.Api/Features/GlAccounts/Transactions/` for `GET /api/gl/accounts/{id}/transactions` (`listAccountTransactions`, API-GLA-012), `GET .../transactions/{entryId}` (`getAccountTransaction`, API-GLA-013) and `GET .../transactions/export` (`exportAccountTransactions`, API-GLA-014):
-  - Requirements: REQ-GLA-020, 021, 022, 023.
-  - Acceptance criteria: AC-GLA-033, 034, 035, 036, 037.
-  - Behaviour: envelope `{items,total,page,pageSize}`, `page` >= 1, `pageSize` default 50 and maximum 200 (larger returns 400), newest posting date first; filter by `fromDate`/`toDate` (inclusive, `toDate` not before `fromDate`) or by `fiscalYear` with `fiscalPeriod`; combining both kinds, or `fiscalPeriod` without `fiscalYear`, returns 400; empty account returns an empty page with 200; unknown account 404. Detail returns the `JournalEntryDetail` with lines; unknown entry 404. Export returns `text/csv` with header `entryId,batchId,description,amount,postingStatus,postingDate` and **all** matching rows (not one page); no match returns only the header.
-  - Tests: default paging on the 10,001-entry account, filters, page size 201, detail, export equals filtered set.
+**Goal**: `POST /api/gl/accounts` creates a valid account, rejects duplicates and invalid segment formats.  
+**AC**: AC-GLA-001, AC-GLA-002, AC-GLA-003  
+**Independent Test**: POST valid payload → 201; duplicate → 409; bad format → 422.
 
----
+- [x] T031 [P] [US1] Create `src/GlAccounts.Application/Features/GlAccounts/CreateAccount/CreateAccountCommand.cs` and `CreateAccountValidator.cs` — FluentValidation: AccountId required+max32; Description required+max200; AccountType valid enum; Category required+max50 + `ClassificationRules.IsValidCategoryForType` rule; Status/BalanceType/NormalBalance valid enums; CurrencyId optional max10
+- [x] T032 [US1] Create `src/GlAccounts.Application/Features/GlAccounts/CreateAccount/CreateAccountHandler.cs`: validate segment format → check duplicate → create `GlAccount` → persist → append audit entry (Created)
+- [x] T033 [US1] Create `src/GlAccounts.Api/Features/GlAccounts/CreateAccount/CreateAccountEndpoint.cs` — `POST /api/gl/accounts`; reads `X-User-Id` header; 201/400/409/422/500; uses `ProblemDetails` helper
+- [x] T034 [P] [US1] Create `src/GlAccounts.Tests/Integration/CreateAccountEndpointTests.cs` — AC-GLA-001 (valid → 201), AC-GLA-002 (duplicate → 409), AC-GLA-003 (bad format → 422)
+- [x] T035 [US1] Run `dotnet test` — all tests pass
 
-## Phase 9: US4 Attributes (Priority: P2)
-
-- [X] T009 [US4] [US11] Slice S07 ManageAttributes in `src/GlAccounts.Api/Features/GlAccounts/ManageAttributes/` for `POST /api/gl/accounts/{id}/attributes` (`addAccountAttribute`, API-GLA-005), `PUT .../attributes/{attributeId}` (`updateAccountAttribute`, API-GLA-006) and `DELETE .../attributes/{attributeId}` (`removeAccountAttribute`, API-GLA-007); also extends T003 and T005 for the staged paths; depends on T003 and T005:
-  - Requirements: REQ-GLA-009, 010, 011, 012, 031. NFR-GLA-004 (<= 1 s).
-  - Acceptance criteria: AC-GLA-014, 015, 016, 017, 018, 019, and the attribute part of AC-GLA-051.
-  - Behaviour: attribute type and value must exist in the catalog and the value must belong to the type (400 field error otherwise; empty required field 400). Standalone operations change the account version (new `ETag` in the response). Staged: `attributes` on create and `attributeChanges` on update (`Add`, `Edit`, `Remove` rules per the `AttributeChange` schema) are applied with the account change, all or nothing; if any staged change is invalid nothing is applied and no audit entry is written (AC-GLA-018). Attributes never change `eligibleForPosting` (AC-GLA-019). Audit: `AttributeAdded`, `AttributeChanged`, `AttributeRemoved`, one entry per change.
-  - Tests: add two, edit one, remove one, invalid value, staged success, staged failure rolls back (account fields and attributes unchanged), eligibility unchanged.
+**Checkpoint**: POST /api/gl/accounts working end-to-end. 3 ACs covered.
 
 ---
 
-## Phase 10: US6 Account groups (Priority: P2)
+## Phase 4: User Story 2 — Retrieve and Update Account API (Priority: P2)
 
-- [X] T010 [P] [US6] Slice S08 ListAccountGroups in `src/GlAccounts.Api/Features/GlAccounts/ListAccountGroups/` for `GET /api/gl/accounts/{id}/groups` (`listAccountGroups`, API-GLA-008) and `GET .../groups/export` (`exportAccountGroups`, API-GLA-009):
-  - Requirements: REQ-GLA-015, 016.
-  - Acceptance criteria: AC-GLA-024, 025, 027.
-  - Behaviour: each group has `groupId`, `name` and `parentChain` (nearest parent first, root last; empty for a root group); no group returns `{ "items": [] }` with 200; unknown account 404. Export returns `text/csv` with header `groupId,name,parentChain` (names joined by ` > `) and one row per group; none returns only the header.
-  - Tests: nested groups, no group, export content, unknown account.
+**Goal**: `GET` and `PUT /api/gl/accounts/{id}` — retrieve and update editable fields; permanent fields protected.  
+**AC**: AC-GLA-004, AC-GLA-005
 
----
+- [x] T036 [P] [US2] Create `src/GlAccounts.Application/Features/GlAccounts/GetAccount/GetAccountQuery.cs` + `GetAccountHandler.cs` — 404 if not found
+- [x] T037 [P] [US2] Create `src/GlAccounts.Api/Features/GlAccounts/GetAccount/GetAccountEndpoint.cs` — `GET /api/gl/accounts/{accountId}`; 200/404/500
+- [x] T038 [P] [US2] Create `UpdateAccountCommand.cs` + `UpdateAccountValidator.cs` — validates editable fields; rejects attempt to change AccountId or AccountType (422)
+- [x] T039 [US2] Create `UpdateAccountHandler.cs`: load → reject permanent-field changes → validate Category/Type → update → persist → audit entry (Updated, with before/after)
+- [x] T040 [US2] Create `src/GlAccounts.Api/Features/GlAccounts/UpdateAccount/UpdateAccountEndpoint.cs` — `PUT /api/gl/accounts/{accountId}`; 200/400/404/422/500
+- [x] T041 [P] [US2] Create `src/GlAccounts.Tests/Integration/GetAndUpdateAccountEndpointTests.cs` — AC-GLA-005 (GET → 200; PUT description → 200), AC-GLA-004 (PUT accountType → 422)
+- [x] T042 [US2] Run `dotnet test` — all tests pass
 
-## Phase 11: US12 Templates (Priority: P3)
-
-- [X] T011 [US12] Slice S09 Templates in `src/GlAccounts.Api/Features/GlAccounts/Templates/` for `GET /api/gl/accounts` (`searchAccounts`, API-GLA-015) and the template path of `POST /api/gl/accounts` (`createAccount` with `templateAccountId`, API-GLA-016); extends T003; depends on T003:
-  - Requirements: REQ-GLA-033, 034 (REQ-GLA-032 is covered by T003).
-  - Acceptance criteria: AC-GLA-053, 054, 055.
-  - Behaviour: search with `q` (Account ID or description, case-insensitive), `status`, `accountType`, `category`, `page`, `pageSize` (default 50, maximum 200) returning `AccountSummaryPage`; `status=Template` is the template library. Create from template copies description, accountType, category, currencyId, balanceType, normalBalance from the template unless the request supplies them, default status `Active`, assigns its own full Account ID, leaves the template unchanged (AC-GLA-053); unknown template returns 404; a source that is not a template returns 400 saying the source is not a template (AC-GLA-054). Template accounts are not eligible for transactions (already covered by T004).
-  - Tests: search matches only, create from template, non-template source, template unchanged afterwards.
+**Checkpoint**: GET + PUT working. 2 ACs covered.
 
 ---
 
-## Phase 12: Polish and cross-cutting
+## Phase 5: User Story 3 — Classification Validation (Priority: P2)
 
-- [X] T012 Contract conformance tests in `tests/GlAccounts.Api.IntegrationTests/Contract/`: for every operation in `contracts/openapi.yaml` call the running test host and check status codes, response schemas, content types and headers (`ETag`, `Location`, `Content-Disposition`) against the committed contract; run `dotnet run scripts/sdlc/sdlc.cs -- drift` against the contract generated by the app (if generation is not wired, record `contract_drift` as "not run (reason)", never as passed). Use `/sdlc-generate-tests`. Covers all 16 operations; reference the API IDs.
-- [X] T013 NFR timing tests in `tests/GlAccounts.Api.IntegrationTests/Performance/`: NFR-GLA-001 (create <= 2 s), NFR-GLA-002/003/004 (read, update, attribute operations <= 1 s), NFR-GLA-005 (dependency check <= 1 s on the 10,001-transaction account). Generous ceilings, no fixed sleeps, each test labelled "stub data only". Use `/sdlc-generate-tests`.
-- [X] T014 Traceability and quickstart: run the 18 scenarios in `quickstart.md`, make sure every active AC (AC-GLA-001..057 except the retired 026, 046, 047, 048) is referenced by at least one test, then `dotnet run scripts/sdlc/sdlc.cs -- gate specs/001-gl-account-maintenance traceability`. Fix gaps with additional tests only; do not edit the spec to shrink the set.
+**Goal**: Category validated against AccountType on create and update.  
+**AC**: AC-GLA-006
 
----
+- [x] T043 [P] [US3] Create `src/GlAccounts.Tests/Integration/AccountClassificationTests.cs` — AC-GLA-006 (Statistical + Asset category → 422); valid combos → 201/200
+- [x] T044 [US3] Verify `ClassificationRules` covers Financial (Asset/Liability/Equity/Revenue/Expense) and rejects non-Financial categories for Statistical; update validators if needed
+- [x] T045 [US3] Run `dotnet test` — all tests pass
 
-## Phase 13: Frontend (ADR-002: Angular + Angular Material, `src/GlAccounts.Web/`)
-
-Added after the backend tasks, once ADR-002 was accepted. The UI only consumes the existing API; it does not change `contracts/openapi.yaml`. No authentication (Q-001). Unit tests are co-located `*.spec.ts` files that put AC IDs in test names or comments. Screens and states follow `ux/user-flows.md` and `ux/component-map.yaml`; every screen implements loading, empty, populated and error states (`forbidden` stays reserved and unreachable). Say "stub data only", never "persisted".
-
-- [X] T015 [UI] Scaffold `src/GlAccounts.Web/` with Angular CLI (standalone components, strict TypeScript, routing, SCSS) and Angular Material; add `proxy.conf.json` sending `/api` to `http://localhost:5000`; app shell with navigation (Accounts search, Templates), lazy-loaded feature routes (`/gl/accounts/...`, `/gl/account-templates`); typed API client service for all 15 operations using the contract field names; a shared `ProblemDetails` model and error mapper (400 field errors, 404, 409, 500); ETag/`If-Match` helper; the `gap` wrappers shared by several screens (`PageHeader`, `EmptyState`, `ErrorBanner`, `StatusBadge`, `DescriptionList`) with `aria-live` regions per `user-flows.md`. Unit tests for the API client and error mapper. Gate: `npm run build` and `npm test` exit 0. Requirements: NFR-GLA-006 (errors after submit).
-- [X] T016 [UI] [US1] [US5] [US6] [US9] Account search entry, account inquiry (UX-GLA-002) and delete dialog (UX-GLA-004) at `/gl/accounts/{id}`: classification, status, posting eligibility text (not colour alone), segments, attributes, groups panel with empty state and CSV export (API-GLA-008, 009), links to Edit, Period Summary, Transactions, Delete; delete `alertdialog` with focus trap, 204 success redirect, 409 `BlockerList` with counts and "Set status to Inactive instead" opening the edit form. Acceptance criteria: AC-GLA-004, 005, 020, 021, 024, 025, 027, 038, 039, 040, 041, 042. Depends on T015.
-- [X] T017 [UI] [US1] [US2] [US4] [US5] Create/edit form (UX-GLA-001) with attribute panel (UX-GLA-003) at `/gl/accounts/new` and `/gl/accounts/{id}/edit`: Reactive Form, static Account ID format hint (4-3-2), Financial-only balance type and normal balance, Account ID and Account Type read-only on edit, justification field shown when status changes, save button disabled while in flight, field errors via `aria-describedby` and a `role="alert"` error summary after submit, 409 duplicate at the Account ID field, **409 stale version** with a Reload action that keeps the user's input, staged attribute changes sent as `attributeChanges` (Add/Edit/Remove) and immediate single-attribute calls on a saved account. Acceptance criteria: AC-GLA-001, 002, 003, 006, 007, 008, 009, 011, 012, 013, 014, 015, 016, 017, 018, 022, 023, 043, 044, 045, 056, 057. Depends on T015, T016.
-- [X] T018 [UI] [US7] [US8] Period summary and transactions (UX-GLA-005) at `/gl/accounts/{id}/period-summary` and `/gl/accounts/{id}/transactions`: fiscal-year filter and sortable columns with `aria-sort`, balances by period and year plus budget versions, Excel export with the current filter and sort; transactions with default 50 rows, selectable page size up to 200, date range **or** fiscal period (mutually exclusive in the UI), row drill-down to the journal entry detail with lines, CSV export of the filtered set, result count announced ("50 of 10,001 entries"). Acceptance criteria: AC-GLA-028, 029, 030, 031, 032, 033, 034, 035, 036, 037. Depends on T015, T016.
-- [X] T019 [UI] [US12] Template library (UX-GLA-006) at `/gl/account-templates`: search and filter (`status=Template`), paging, empty state, "Create account from template" with a new full Account ID and prefilled editable settings, 201 redirect to the new account, 400 for a source that is no longer a template, 409 duplicate and 400 invalid segments as in Flow 1. Acceptance criteria: AC-GLA-053, 054, 055. Depends on T015, T017.
-- [X] T020 [UI] Browser tests in `src/GlAccounts.Web/e2e/` with Playwright and `@axe-core/playwright` against the running API (stub data, restarted per run) and the dev server: the 8 flows in `ux/user-flows.md`, keyboard-only paths for the form and the delete dialog, axe checks on the populated state of each screen (violations fail the test), the 409 stale-version path. Record `playwright` evidence only if the command really ran. Depends on T016 to T019.
-
-**Checkpoint**: all gates ready for `/sdlc-run-gates` and `/sdlc-converge-feature`.
+**Checkpoint**: Category/Type rules enforced. 1 AC covered.
 
 ---
 
-## Dependencies and execution order
+## Phase 6: User Story 4 — Account Status Lifecycle (Priority: P2)
 
-```mermaid
-flowchart LR
-  T001 --> T002
-  T002 --> T003 --> T004 --> T005 --> T009
-  T002 --> T006
-  T002 --> T007
-  T002 --> T008
-  T002 --> T010
-  T003 --> T011
-  T005 --> T009
-  T003 --> T009
-  T009 --> T012
-  T011 --> T012
-  T006 --> T012
-  T007 --> T012
-  T008 --> T012
-  T010 --> T012
-  T012 --> T013 --> T014
+**Goal**: Status (Active/Hold/Inactive/Template) changes persist; `StatusRules` enforced.  
+**AC**: AC-GLA-007
+
+- [x] T046 [P] [US4] Create `src/GlAccounts.Tests/Integration/AccountStatusTests.cs` — AC-GLA-007 (Inactive account status = Inactive in GET; StatusRules.CanBeUsedInTransaction returns false); PUT status changes → 200
+- [x] T047 [US4] Verify `StatusRules.CanBeUsedInTransaction` is reachable from `UpdateAccountHandler`; document that journal module will call it
+- [x] T048 [US4] Run `dotnet test` — all tests pass
+
+**Checkpoint**: Status lifecycle works. 1 AC covered.
+
+---
+
+## Phase 7: User Story 5 — Manage Account Attributes API (Priority: P2)
+
+**Goal**: `POST/PUT/DELETE /api/gl/accounts/{id}/attributes` — CRUD on attributes; atomic with parent save.  
+**AC**: AC-GLA-008, AC-GLA-009
+
+- [x] T049 [P] [US5] Create `AddAttributeCommand.cs` + `AddAttributeHandler.cs` — validates type/value exist in catalog → add → audit entry
+- [x] T050 [P] [US5] Create `UpdateAttributeCommand.cs` + `UpdateAttributeHandler.cs` — validates new value → update → audit entry
+- [x] T051 [P] [US5] Create `RemoveAttributeCommand.cs` + `RemoveAttributeHandler.cs` — delete → audit entry
+- [x] T052 [US5] Create `src/GlAccounts.Api/Features/GlAccounts/ManageAttributes/ManageAttributesEndpoint.cs` — POST (201), PUT (200), DELETE (204); 400/404/422/500
+- [x] T053 [P] [US5] Create `src/GlAccounts.Tests/Integration/ManageAttributesEndpointTests.cs` — AC-GLA-008 (POST → 201), AC-GLA-009 (add+update+delete sequence commits atomically)
+- [x] T054 [US5] Run `dotnet test` — all tests pass
+
+**Checkpoint**: Attribute CRUD working. 2 ACs covered.
+
+---
+
+## Phase 8: User Story 9 — Delete Account with Protection (Priority: P1)
+
+**Goal**: `DELETE /api/gl/accounts/{id}` — blocked if dependencies; 204 when clean.  
+**AC**: AC-GLA-013, AC-GLA-014
+
+- [x] T055 [P] [US9] Create `DeleteAccountCommand.cs` + `DeleteAccountHandler.cs`: load → check transactions → check groups → if blocked 409 with count + deactivation suggestion → else delete → audit entry (Deleted)
+- [x] T056 [US9] Create `src/GlAccounts.Api/Features/GlAccounts/DeleteAccount/DeleteAccountEndpoint.cs` — `DELETE /api/gl/accounts/{accountId}`; 204/400/404/409/500
+- [x] T057 [P] [US9] Create `src/GlAccounts.Tests/Integration/DeleteAccountEndpointTests.cs` — AC-GLA-013 (01-200-2000 → 409 with "3 posted transaction(s)" + deactivation message), AC-GLA-014 (clean account → 204)
+- [x] T058 [US9] Run `dotnet test` — all tests pass
+
+**Checkpoint**: Deletion protection enforced. 2 ACs covered.
+
+---
+
+## Phase 9: User Story 6 — Account Groups API (Priority: P3)
+
+**Goal**: `GET /api/gl/accounts/{id}/groups` returns all groups containing the account.  
+**AC**: AC-GLA-010
+
+- [x] T059 [P] [US6] Create `ListAccountGroupsQuery.cs` + `ListAccountGroupsHandler.cs`
+- [x] T060 [US6] Create `src/GlAccounts.Api/Features/GlAccounts/ListAccountGroups/ListAccountGroupsEndpoint.cs` — `GET /api/gl/accounts/{accountId}/groups`; 200/400/404/500
+- [x] T061 [P] [US6] Create `src/GlAccounts.Tests/Integration/ListAccountGroupsEndpointTests.cs` — AC-GLA-010 (seed account → GRP-001 returned; account not in group → empty list)
+- [x] T062 [US6] Run `dotnet test` — all tests pass
+
+**Checkpoint**: Account group inquiry working. 1 AC covered.
+
+---
+
+## Phase 10: User Story 7 — Period Summary API (Priority: P2)
+
+**Goal**: `GET /api/gl/accounts/{id}/period-summary` returns period balances, filterable.  
+**AC**: AC-GLA-011
+
+- [x] T063 [P] [US7] Create `PeriodSummaryQuery.cs` + `PeriodSummaryHandler.cs` — delegates to `IPeriodBalanceStore` with optional filters
+- [x] T064 [US7] Create `src/GlAccounts.Api/Features/GlAccounts/PeriodSummary/PeriodSummaryEndpoint.cs` — `GET /api/gl/accounts/{accountId}/period-summary`; optional `?fiscalYear`, `?fromPeriod`, `?toPeriod`; 200/400/404/500
+- [x] T065 [P] [US7] Create `src/GlAccounts.Tests/Integration/PeriodSummaryEndpointTests.cs` — AC-GLA-011 (seed account → 4 records; fiscal-year filter; period-range filter; empty → empty list)
+- [x] T066 [US7] Run `dotnet test` — all tests pass
+
+**Checkpoint**: Period summary working. 1 AC covered.
+
+---
+
+## Phase 11: User Story 8 — Transaction History API (Priority: P2)
+
+**Goal**: `GET /api/gl/accounts/{id}/transactions` returns transactions, filterable by date range.  
+**AC**: AC-GLA-012
+
+- [x] T067 [P] [US8] Create `TransactionsQuery.cs` + `TransactionsHandler.cs`
+- [x] T068 [US8] Create `src/GlAccounts.Api/Features/GlAccounts/Transactions/TransactionsEndpoint.cs` — `GET /api/gl/accounts/{accountId}/transactions`; `?fromDate`, `?toDate`, `?postingStatus`; 200/400/404/500
+- [x] T069 [P] [US8] Create `src/GlAccounts.Tests/Integration/TransactionsEndpointTests.cs` — AC-GLA-012 (seed 01-200-2000 → 3 records; date filter → correct subset; empty account → empty list)
+- [x] T070 [US8] Run `dotnet test` — all tests pass
+
+**Checkpoint**: Transaction history working. 1 AC covered.
+
+---
+
+## Phase 12: User Story 11 — Audit Trail (Priority: P2)
+
+**Goal**: Every write operation produces an audit entry with caller user ID, timestamp, before/after values.  
+**AC**: AC-GLA-015, AC-GLA-016
+
+- [x] T071 [P] [US11] Create `src/GlAccounts.Api/Common/UserIdReader.cs` — reads `X-User-Id` header; returns "anonymous" if absent
+- [x] T072 [US11] Verify all write handlers (Create/Update/Delete account; Add/Update/Remove attribute; CopyFromTemplate) receive and use `userId` from `UserIdReader` in their audit entries — add `userId` parameter to commands if needed
+- [x] T073 [P] [US11] Create `src/GlAccounts.Tests/Integration/AuditTrailTests.cs` — AC-GLA-015 (POST account → audit entry: ChangeType=Created, UserId=test-user, AfterValues contains accountId+description); AC-GLA-016 (PUT account → audit entry: ChangeType=Updated, BeforeValues.description=old, AfterValues.description=new)
+- [x] T074 [US11] Run `dotnet test` — all tests pass
+
+**Checkpoint**: Audit trail wired into all write handlers. 2 ACs covered.
+
+---
+
+## Phase 13: User Story 12 — Copy from Template API (Priority: P4)
+
+**Goal**: `POST /api/gl/accounts/{id}/copy` creates a new account from a Template source.  
+**AC**: AC-GLA-017
+
+- [x] T075 [P] [US12] Create `CopyFromTemplateCommand.cs` + `CopyFromTemplateHandler.cs`: load source → validate source.Status=Template (422 if not) → validate newAccountId format → check uniqueness → create copied account (Status=Active) → persist → audit entry
+- [x] T076 [US12] Create `src/GlAccounts.Api/Features/GlAccounts/Templates/CopyFromTemplateEndpoint.cs` — `POST /api/gl/accounts/{accountId}/copy`; 201/400/404/409/422/500
+- [x] T077 [P] [US12] Create `src/GlAccounts.Tests/Integration/CopyFromTemplateEndpointTests.cs` — AC-GLA-017 (copy 01-100-5000 → 201; copied fields correct; source still Template); non-template → 422; duplicate new ID → 409
+- [x] T078 [US12] Run `dotnet test` — all tests pass
+
+**Checkpoint**: Template copy working. 1 AC covered.
+
+---
+
+## Phase 14: Angular Foundation
+
+**Purpose**: Bootstrap the Angular SPA, configure routing, create the API service and TypeScript models. Must be complete before any Angular feature slice.
+
+- [x] T079 Scaffold Angular project: run `ng new GlAccounts.Web --routing --style scss --standalone false` in `src/`; verify `ng build` exits 0
+- [x] T080 [P] Create TypeScript interface models in `src/GlAccounts.Web/src/app/core/models/account.model.ts` matching `openapi.yaml` schemas: `AccountResponse`, `CreateAccountRequest`, `UpdateAccountRequest`, `AttributeResponse`, `AddAttributeRequest`, `AccountGroupResponse`, `PeriodBalanceResponse`, `TransactionResponse`, `ProblemDetails`
+- [x] T081 [P] Create `src/GlAccounts.Web/src/app/core/services/gl-accounts.service.ts` using `HttpClient`: methods for all 11 API operations (createAccount, getAccount, updateAccount, deleteAccount, addAttribute, updateAttribute, removeAttribute, listGroups, getPeriodSummary, getTransactions, copyFromTemplate); base URL from `environment.apiBaseUrl`
+- [x] T082 [P] Configure `src/GlAccounts.Web/src/environments/environment.ts`: `apiBaseUrl: 'http://localhost:5001'`
+- [x] T083 Configure `app.routes.ts` with routes for: `/gl/accounts` (list), `/gl/accounts/new` (create), `/gl/accounts/:id` (detail), `/gl/accounts/:id/edit` (edit)
+- [x] T084 [P] Create `src/GlAccounts.Web/src/app/core/services/gl-accounts.service.spec.ts` — unit tests for service method signatures and HTTP calls using `HttpClientTestingModule`
+- [x] T085 Verify: `ng build` exits 0; `ng test --watch=false` exits 0
+
+**Checkpoint**: Angular project builds. Service and models in place. Routing configured.
+
+---
+
+## Phase 15: Angular Account List + Create Form (US1, US2)
+
+**Goal**: Account list view shows seed accounts; Create form submits valid data and shows validation errors.  
+**Story**: US1 (create), US2 (list + edit)
+
+- [x] T086 [P] [US1] Create `src/GlAccounts.Web/src/app/features/account-list/account-list.component.ts` — calls `GlAccountsService.getAll()` (add `GET /api/gl/accounts` to service); displays accounts in table; loading/empty/error states; navigate to detail and create
+- [x] T087 [P] [US1] Create `src/GlAccounts.Web/src/app/features/account-form/account-form.component.ts` — Angular Reactive Form; fields: AccountId (create-only), Description, AccountType (create-only), Category, Status, BalanceType, NormalBalance, CurrencyId; client-side required validation; on submit calls `createAccount` or `updateAccount`; shows `ValidationSummaryComponent` on 400/422 errors
+- [x] T088 [P] [US1] Create shared `ValidationSummaryComponent` in `src/GlAccounts.Web/src/app/shared/` — displays ProblemDetails errors list
+- [x] T089 [P] [US1] Create `src/GlAccounts.Web/src/app/features/account-list/account-list.component.spec.ts` and `account-form.component.spec.ts` — unit tests with `HttpClientTestingModule`; test loading state, empty state, populated state, error state
+- [x] T090 [US1] Verify: `ng build` exits 0; `ng test --watch=false` exits 0
+
+**Checkpoint**: Account list and create form work against the running backend.
+
+---
+
+## Phase 16: Angular Account Detail + Edit (US2, US3, US4)
+
+**Goal**: Account detail view shows all fields; Edit form protects permanent fields; status/classification change works.  
+**Story**: US2 (edit), US3 (classification), US4 (status)
+
+- [x] T091 [P] [US2] Create `src/GlAccounts.Web/src/app/features/account-detail/account-detail.component.ts` — loads account by ID; shows all fields; action bar with Edit/Delete/Copy buttons; tabs/panels for Attributes, Groups, Period Summary, Transactions
+- [x] T092 [P] [US2] Update `account-form.component.ts` for edit mode — AccountId and AccountType fields are `readonly`; show `PermanentFieldReadonlyComponent` badge; submit calls `updateAccount`; navigate back to detail on success
+- [x] T093 [P] [US3] Add `AccountClassificationPanelComponent` to detail view — displays Category, BalanceType, NormalBalance; client-side validation for Category vs AccountType
+- [x] T094 [P] [US4] Add `StatusSelectComponent` to form — dropdown for Active/Hold/Inactive/Template; shows tooltip when status restricts transactions
+- [x] T095 [P] [US2] Create component specs: `account-detail.component.spec.ts` — tests for loading, populated (all fields shown), error (404 handled gracefully)
+- [x] T096 [US2] Verify: `ng build` exits 0; `ng test --watch=false` exits 0
+
+**Checkpoint**: Detail + edit views complete. Permanent-field protection shown in UI.
+
+---
+
+## Phase 17: Angular Attributes Panel (US5)
+
+**Goal**: Inline attributes panel on the account detail view — add, edit, remove attributes.  
+**Story**: US5
+
+- [x] T097 [P] [US5] Create `src/GlAccounts.Web/src/app/features/attributes/attributes-panel.component.ts` — lists account attributes; Add button opens `AddAttributeFormComponent`; inline edit; delete with confirmation; all changes call API immediately (not staged — staging is an API-layer concern already tested)
+- [x] T098 [P] [US5] Create `add-attribute-form.component.ts` — dropdowns for AttributeTypeId and AttributeValueId; submits to `addAccountAttribute`; shows errors on 422
+- [x] T099 [P] [US5] Create `attributes-panel.component.spec.ts` — tests for empty, populated, add success, add error, delete
+- [x] T100 [US5] Verify: `ng build` exits 0; `ng test --watch=false` exits 0
+
+**Checkpoint**: Attributes panel works. Users can manage attributes from the UI.
+
+---
+
+## Phase 18: Angular Inquiry Views (US6, US7, US8)
+
+**Goal**: Account groups, period summary, and transaction history views accessible from account detail tabs.  
+**Story**: US6, US7, US8
+
+- [x] T101 [P] [US6] Create `src/GlAccounts.Web/src/app/features/account-groups/account-groups.component.ts` — displays group list for account; empty state "Not in any groups"; loading/error states
+- [x] T102 [P] [US7] Create `src/GlAccounts.Web/src/app/features/period-summary/period-summary.component.ts` — table of period balances; `FiscalYearFilterComponent` and `PeriodRangeFilterComponent` inputs; reactive filter updates table
+- [x] T103 [P] [US8] Create `src/GlAccounts.Web/src/app/features/transactions/transaction-list.component.ts` — table of transactions; `DateRangeFilterComponent` and `PostingStatusFilterComponent`; loading/error/empty states
+- [x] T104 [P] [US6] Create component specs for all three: empty/populated/error states tested
+- [x] T105 [US6] Verify: `ng build` exits 0; `ng test --watch=false` exits 0
+
+**Checkpoint**: All three inquiry views working. 3 user stories have UI.
+
+---
+
+## Phase 19: Angular Delete Confirmation + Template Copy (US9, US12)
+
+**Goal**: Delete button shows confirmation with dependency message; template copy dialog works.  
+**Story**: US9, US12
+
+- [x] T106 [P] [US9] Add delete confirmation to `AccountActionBarComponent` — calls `deleteAccount`; on 409 shows dependency message from `ProblemDetails.detail` (includes transaction count and deactivation suggestion); on 204 navigates back to list
+- [x] T107 [P] [US12] Create `src/GlAccounts.Web/src/app/features/account-form/copy-template-dialog.component.ts` — modal form; inputs: newAccountId + description; submits to `copyAccountFromTemplate`; navigates to new account detail on 201; shows 422 error inline
+- [x] T108 [P] [US9] Create `account-action-bar.component.spec.ts` — tests: delete blocked (409 message shown), delete success (204 navigates), copy dialog opens/submits/errors
+- [x] T109 [US9] Verify: `ng build` exits 0; `ng test --watch=false` exits 0
+
+**Checkpoint**: Delete protection and template copy fully usable from UI.
+
+---
+
+## Phase 20: Polish and Cross-Cutting Concerns
+
+**Purpose**: Shared helpers, error response consistency, CORS, final gate runs.
+
+- [x] T110 [P] Create `src/GlAccounts.Api/Common/ProblemDetails.cs` helper — centralises `HttpValidationProblemDetails` and `ProblemDetails` response construction; 400/409/422/500 use consistent shape matching `openapi.yaml`
+- [x] T111 [P] Create `ApplicationServiceCollectionExtensions` in `src/GlAccounts.Application/` registering FluentValidation validators; call from `Program.cs`
+- [x] T112 [P] Add `GET /api/gl/accounts` list endpoint (`SearchAccountsEndpoint.cs`) — supports optional `?status` filter; needed by Angular `AccountListComponent`
+- [x] T113 Run full gate suite: `dotnet run scripts/sdlc/sdlc.cs -- gate specs/001-gl-account-maintenance specification` → 0; `gate contract` → 0; `gate ux` → 0; `gate traceability` → 0
+- [x] T114 Run and record: `dotnet run scripts/sdlc/sdlc.cs -- evidence specs/001-gl-account-maintenance build dotnet build --no-restore -warnaserror` — exits 0
+- [x] T115 Run and record: `dotnet run scripts/sdlc/sdlc.cs -- evidence specs/001-gl-account-maintenance unit_tests dotnet test --no-build` — exits 0
+
+**Checkpoint**: All backend gates pass. Build clean. Tests green. Angular build passes.
+
+---
+
+## Dependencies and Execution Order
+
+### Phase Dependencies
+
+- **Phase 1** (Backend Setup): No dependencies — start immediately
+- **Phase 2** (Foundational): Depends on Phase 1 — BLOCKS Phases 3–14
+- **Phases 3–13** (API slices): All depend on Phase 2; can proceed in priority order or parallel
+- **Phase 14** (Angular Foundation): Depends on Phase 1 (CORS configured); can run **in parallel with Phases 3–13**
+- **Phases 15–19** (Angular features): Depend on Phase 14 AND the corresponding API phase
+- **Phase 20** (Polish): Depends on all phases complete
+
+### Backend vs Frontend Parallelism
+
+```
+Phase 1 (Backend Setup)
+├── Phase 2 (Domain + Stubs)  ──► Phases 3–13 (API slices, sequential by priority)
+└── Phase 14 (Angular Foundation) ──► Phases 15–19 (Angular features)
 ```
 
-- T001 then T002 are strictly first. T003 follows T002.
-- T003 -> T004 -> T005 form the P1 account spine; T009 needs T003 and T005; T011 needs T003.
-- T006, T007, T008 and T010 depend only on T002 (and on seed data) and can be done in any order after it; the order above follows priority.
-- T012 to T014 need every slice done.
+A second developer can start Angular Foundation (Phase 14) while the first builds Phases 2–3 backend.
 
-**Order of execution (one task at a time, approval before each):** T001, T002, T003, T004, T005, T006, T007, T008, T009, T010, T011, T012, T013, T014, T015, T016, T017, T018, T019, T020.
+### User Story to Phase Mapping
 
-## Parallel opportunities (documentation only)
+| Story | Backend Phase | Angular Phase | ACs |
+|---|---|---|---|
+| US1 Create (P1) | 3 | 15 | AC-001,002,003 |
+| US2 Get/Update (P2) | 4 | 15, 16 | AC-004,005 |
+| US3 Classification (P2) | 5 | 16 | AC-006 |
+| US4 Status (P2) | 6 | 16 | AC-007 |
+| US5 Attributes (P2) | 7 | 17 | AC-008,009 |
+| US9 Delete (P1) | 8 | 19 | AC-013,014 |
+| US6 Groups (P3) | 9 | 18 | AC-010 |
+| US7 Period Summary (P2) | 10 | 18 | AC-011 |
+| US8 Transactions (P2) | 11 | 18 | AC-012 |
+| US11 Audit Trail (P2) | 12 | — (backend only) | AC-015,016 |
+| US12 Template Copy (P4) | 13 | 19 | AC-017 |
 
-T006, T007, T008 and T010 touch different feature folders and could run in parallel by different developers after T002. T010 is marked [P] because it also shares no store method with the others.
+---
 
-## Implementation strategy
+## Implementation Strategy
 
-1. MVP: T001, T002, T003, T004 (create and read an account, with audit and validation).
-2. Complete the P1 spine: T005, then T006, T007, T008.
-3. P2: T009, T010. P3: T011.
-4. Polish: T012, T013, T014, then `/sdlc-run-gates` and `/sdlc-converge-feature`.
+### Backend MVP (P1 stories — Phases 1–3, 8)
 
-After each task: `dotnet run scripts/sdlc/sdlc.cs -- evidence <spec-dir> build dotnet build --no-restore -warnaserror` then `evidence <spec-dir> unit_tests dotnet test --no-build`.
+1. Phase 1 → Phase 2 → Phase 3 (Create Account) → Phase 8 (Delete Protection)
+2. **Verify API**: POST/DELETE endpoints working; 5 ACs covered
 
-## Requirement coverage check
+### Full Backend (Phases 1–13)
 
-| Requirement | Task | | Requirement | Task |
-|---|---|---|---|---|
-| REQ-GLA-001, 002, 003 | T003 | | REQ-GLA-020, 021, 022, 023 | T008 |
-| REQ-GLA-004 | T005 | | REQ-GLA-024, 025, 026 | T006 |
-| REQ-GLA-005 | T004 | | REQ-GLA-027 | T003, T005 |
-| REQ-GLA-006 | T005 | | REQ-GLA-028, 029 | deferred (Q-001) |
-| REQ-GLA-007, 008 | T003, T005 | | REQ-GLA-030 | T002, T003 |
-| REQ-GLA-009, 010, 011, 012 | T009 | | REQ-GLA-031 | T005, T009 |
-| REQ-GLA-013 | T004 | | REQ-GLA-032 | T003 |
-| REQ-GLA-014 | T005 | | REQ-GLA-033, 034 | T011 |
-| REQ-GLA-015, 016 | T010 | | REQ-GLA-035 | T005 |
-| REQ-GLA-017, 018, 019 | T007 | | | |
+All 17 ACs covered by backend tests before Angular work begins
 
-All 53 active acceptance criteria are assigned: AC-GLA-001..003, 011..013, 043, 044, 049, 052, 057 (T003); 004, 005, 020, 021 (T004); 006..010, 022, 023, 045, 050, 051, 056 (T005); 038..042 (T006); 028..032 (T007); 033..037 (T008); 014..019 (T009); 024, 025, 027 (T010); 053..055 (T011).
+### Angular MVP (Phases 14–15 after backend MVP)
 
-## Not tasked (decisions needed first)
+Angular Foundation + Account List/Create Form — users can create and browse accounts
 
-- **Frontend implementation (UX-GLA-001..006).** ADR-002 is undecided; no UI task is created until a framework and component library are chosen and the 48 design-system gaps in `ux/component-map.yaml` are reviewed. Backend tasks do not depend on it.
-- **Authentication and authorization** (REQ-GLA-028, 029): deferred by user decision (Q-001); needs its own feature, ADR and human approval.
-- **Real database, migrations, durability**: out of scope; "not verified (stub data)".
+### Full Stack (Phases 14–20)
+
+All views complete; end-to-end tested via `ng test` + `dotnet test`
+
+---
+
+## Traceability (AC → Task)
+
+| AC | Backend task | Angular task |
+|---|---|---|
+| AC-GLA-001 | T034 | T087 |
+| AC-GLA-002 | T034 | T087 |
+| AC-GLA-003 | T034 | T087 |
+| AC-GLA-004 | T041 | T092 |
+| AC-GLA-005 | T041 | T087/T092 |
+| AC-GLA-006 | T043 | T093 |
+| AC-GLA-007 | T046 | T094 |
+| AC-GLA-008 | T053 | T098 |
+| AC-GLA-009 | T053 | T097 |
+| AC-GLA-010 | T061 | T101 |
+| AC-GLA-011 | T065 | T102 |
+| AC-GLA-012 | T069 | T103 |
+| AC-GLA-013 | T057 | T106 |
+| AC-GLA-014 | T057 | T106 |
+| AC-GLA-015 | T073 | — |
+| AC-GLA-016 | T073 | — |
+| AC-GLA-017 | T077 | T107 |
+
+---
+
+## Notes
+
+- `[P]` = parallelizable (different files, no shared dependency)
+- Authorization enforcement is NOT implemented (Q-001); `X-User-Id` header for audit only
+- Last-write-wins on concurrent updates (Q-002); no ETag
+- Angular SPA communicates with backend via REST API; CORS configured in Phase 1
+- Durability is NOT verified in stub phase — record as "not verified (stub data)" in validation report
+- `ng add @angular/material` may be used for UI components — this is an additive dependency (no ADR required)

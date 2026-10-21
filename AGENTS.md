@@ -4,8 +4,14 @@
 No application code exists yet. Until a project is added, treat every item below as
 **policy / intent, not a detected fact**. Re-inspect the repository before relying on any of them.
 - **Target runtime (intent):** .NET 10 / ASP.NET Core 10 for new projects. Never retarget an existing project silently.
-- **Data layer: stub data (current phase).** There is no database or ORM. Slices read and write through a
-  feature-specific store interface backed by deterministic, synthetic in-memory stub data. See `.bob/instructions/dotnet.md` § Stub data.
+- **Backend architecture:** Clean Architecture (layered + hexagonal). Every new backend service **must** follow the
+  six-project structure defined in `docs/architecture/Microservices_Target_Solution_Structure.md`.
+  **Folder layout**: `src/Services/<ServiceName>/<ServiceName>.<Layer>/` — the service folder sits under `src/Services/`.
+  Six projects per service: `<Service>.Api` · `<Service>.Application` · `<Service>.Domain` · `<Service>.Infrastructure` · `<Service>.Contracts` · `<Service>.Tests`.
+  Dependency rule: `API → Application → Domain`; `Infrastructure` depends on `Application + Domain`. Domain has **no** outward dependencies.
+  Deviations require an ADR and human approval. See `.bob/instructions/dotnet.md` for the full layer rules.
+- **Data layer: stub data (current phase).** There is no database or ORM. Slices read and write through
+  interfaces defined in the `Application` layer, implemented by in-memory stubs in the `Infrastructure` layer.
   Introducing a real database/ORM requires an ADR and human approval.
 - **Frontend, auth, component library:** undecided — record an explicit decision (ADR) before choosing.
 - **Test runner (intent):** xUnit unless NUnit is already present. Browser tests: Playwright.

@@ -1,96 +1,142 @@
-# Component map for GL Account Maintenance and Inquiry.
-# ADR-002: Angular + Angular Material (src/GlAccounts.Web). `existing` = provided by Angular Material
-# (the repository's chosen component library); `gap` = no Material equivalent, built as a thin wrapper
-# composed from Material and semantic HTML (needs human review).
-# "forbidden" is required by the UX gate but is reserved and unreachable in this phase (spec Q-001: no authorization).
+# Component Map: GL Account Maintenance and Inquiry
+# Frontend: Angular + TypeScript SPA (confirmed Q-003, Jaymin Trivedi)
+# Updated: 2026-10-16 — changed from API-only to full Angular UI
+
 screens:
-  - id: UX-GLA-001
-    name: Account create / edit form
-    route: /gl/accounts/new, /gl/accounts/{id}/edit
-    api_operations: [API-GLA-001, API-GLA-002, API-GLA-003]
-    requirements: [REQ-GLA-001, REQ-GLA-002, REQ-GLA-003, REQ-GLA-004, REQ-GLA-006, REQ-GLA-007, REQ-GLA-008, REQ-GLA-013, REQ-GLA-014, REQ-GLA-035]
+  - id: GLA-SCR-001
+    name: Account List
+    route: /gl/accounts
+    states:
+      - loading
+      - empty
+      - populated
+      - error
+      - forbidden
     components:
-      - {name: PageHeader, source: gap}
-      - {name: TextField, source: existing}
-      - {name: Select, source: existing}
-      - {name: ReadOnlyField, source: gap}
-      - {name: TextArea, source: existing}
-      - {name: FieldError, source: existing}
-      - {name: ErrorSummary, source: gap}
-      - {name: Button, source: existing}
-      - {name: ErrorBanner, source: gap}
-      - {name: SuccessNotice, source: existing}
-    states: [loading, empty, populated, error, forbidden]
-  - id: UX-GLA-002
-    name: Account inquiry
-    route: /gl/accounts/{id}
-    api_operations: [API-GLA-002, API-GLA-008, API-GLA-009]
-    requirements: [REQ-GLA-005, REQ-GLA-013, REQ-GLA-015, REQ-GLA-016, REQ-GLA-017, REQ-GLA-020]
+      - name: AccountListComponent
+        source: gap
+      - name: AccountSearchBarComponent
+        source: gap
+      - name: AccountStatusBadgeComponent
+        source: gap
+
+  - id: GLA-SCR-002
+    name: Create Account Form
+    route: /gl/accounts/new
+    states:
+      - loading
+      - empty
+      - populated
+      - error
+      - forbidden
     components:
-      - {name: PageHeader, source: gap}
-      - {name: DescriptionList, source: gap}
-      - {name: StatusBadge, source: gap}
-      - {name: DataTable, source: existing}
-      - {name: EmptyState, source: gap}
-      - {name: LinkButton, source: existing}
-      - {name: Button, source: existing}
-      - {name: ErrorBanner, source: gap}
-      - {name: SuccessNotice, source: existing}
-    states: [loading, empty, populated, error, forbidden]
-  - id: UX-GLA-003
-    name: Attribute panel
-    route: within /gl/accounts/new and /gl/accounts/{id}/edit
-    api_operations: [API-GLA-005, API-GLA-006, API-GLA-007]
-    requirements: [REQ-GLA-009, REQ-GLA-010, REQ-GLA-011, REQ-GLA-012]
+      - name: AccountFormComponent
+        source: gap
+      - name: SegmentInputComponent
+        source: gap
+      - name: AccountTypeSelectComponent
+        source: gap
+      - name: ValidationSummaryComponent
+        source: gap
+
+  - id: GLA-SCR-003
+    name: Edit Account Form
+    route: /gl/accounts/:id/edit
+    states:
+      - loading
+      - empty
+      - populated
+      - error
+      - forbidden
     components:
-      - {name: EditableTable, source: gap}
-      - {name: Select, source: existing}
-      - {name: FieldError, source: existing}
-      - {name: Button, source: existing}
-      - {name: EmptyState, source: gap}
-    states: [loading, empty, populated, error, forbidden]
-  - id: UX-GLA-004
-    name: Delete confirmation and blocked-delete message
-    route: dialog on /gl/accounts/{id}
-    api_operations: [API-GLA-004]
-    requirements: [REQ-GLA-024, REQ-GLA-025, REQ-GLA-026]
+      - name: AccountFormComponent
+        source: existing
+      - name: PermanentFieldReadonlyComponent
+        source: gap
+      - name: StatusSelectComponent
+        source: gap
+
+  - id: GLA-SCR-004
+    name: Account Detail View
+    route: /gl/accounts/:id
+    states:
+      - loading
+      - empty
+      - populated
+      - error
+      - forbidden
     components:
-      - {name: AlertDialog, source: existing}
-      - {name: BlockerList, source: gap}
-      - {name: Button, source: existing}
-      - {name: ErrorBanner, source: gap}
-    states: [loading, empty, populated, error, forbidden]
-  - id: UX-GLA-005
-    name: Period summary and transaction list
-    route: /gl/accounts/{id}/period-summary, /gl/accounts/{id}/transactions
-    api_operations: [API-GLA-010, API-GLA-011, API-GLA-012, API-GLA-013, API-GLA-014]
-    requirements: [REQ-GLA-017, REQ-GLA-018, REQ-GLA-019, REQ-GLA-020, REQ-GLA-021, REQ-GLA-022, REQ-GLA-023]
+      - name: AccountDetailComponent
+        source: gap
+      - name: AccountClassificationPanelComponent
+        source: gap
+      - name: AccountAttributesPanelComponent
+        source: gap
+      - name: AccountActionBarComponent
+        source: gap
+
+  - id: GLA-SCR-005
+    name: Account Attributes Panel
+    route: /gl/accounts/:id (inline panel)
+    states:
+      - loading
+      - empty
+      - populated
+      - error
+      - forbidden
     components:
-      - {name: PageHeader, source: gap}
-      - {name: FilterBar, source: gap}
-      - {name: DateRangeField, source: existing}
-      - {name: DataTable, source: existing}
-      - {name: SortableColumnHeader, source: existing}
-      - {name: Pagination, source: existing}
-      - {name: DetailPanel, source: gap}
-      - {name: EmptyState, source: gap}
-      - {name: Button, source: existing}
-      - {name: ErrorBanner, source: gap}
-    states: [loading, empty, populated, error, forbidden]
-  - id: UX-GLA-006
-    name: Template library and create-from-template
-    route: /gl/account-templates
-    api_operations: [API-GLA-015, API-GLA-001, API-GLA-016]
-    requirements: [REQ-GLA-032, REQ-GLA-033, REQ-GLA-034]
+      - name: AttributesListComponent
+        source: gap
+      - name: AddAttributeFormComponent
+        source: gap
+      - name: EditAttributeInlineComponent
+        source: gap
+
+  - id: GLA-SCR-006
+    name: Account Groups View
+    route: /gl/accounts/:id/groups
+    states:
+      - loading
+      - empty
+      - populated
+      - error
+      - forbidden
     components:
-      - {name: PageHeader, source: gap}
-      - {name: SearchField, source: existing}
-      - {name: Select, source: existing}
-      - {name: DataTable, source: existing}
-      - {name: Pagination, source: existing}
-      - {name: EmptyState, source: gap}
-      - {name: TextField, source: existing}
-      - {name: FieldError, source: existing}
-      - {name: Button, source: existing}
-      - {name: ErrorBanner, source: gap}
-    states: [loading, empty, populated, error, forbidden]
+      - name: AccountGroupsListComponent
+        source: gap
+      - name: GroupMembershipBadgeComponent
+        source: gap
+
+  - id: GLA-SCR-007
+    name: Period Summary View
+    route: /gl/accounts/:id/period-summary
+    states:
+      - loading
+      - empty
+      - populated
+      - error
+      - forbidden
+    components:
+      - name: PeriodSummaryTableComponent
+        source: gap
+      - name: FiscalYearFilterComponent
+        source: gap
+      - name: PeriodRangeFilterComponent
+        source: gap
+
+  - id: GLA-SCR-008
+    name: Transaction History View
+    route: /gl/accounts/:id/transactions
+    states:
+      - loading
+      - empty
+      - populated
+      - error
+      - forbidden
+    components:
+      - name: TransactionListComponent
+        source: gap
+      - name: DateRangeFilterComponent
+        source: gap
+      - name: PostingStatusFilterComponent
+        source: gap

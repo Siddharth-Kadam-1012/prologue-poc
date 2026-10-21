@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/Services/GlAccounts/">
+    <Project Path="src/Services/GlAccounts/GlAccounts.Api/GlAccounts.Api.csproj" />
+    <Project Path="src/Services/GlAccounts/GlAccounts.Application/GlAccounts.Application.csproj" />
+    <Project Path="src/Services/GlAccounts/GlAccounts.Contracts/GlAccounts.Contracts.csproj" />
+    <Project Path="src/Services/GlAccounts/GlAccounts.Domain/GlAccounts.Domain.csproj" />
+    <Project Path="src/Services/GlAccounts/GlAccounts.Infrastructure/GlAccounts.Infrastructure.csproj" />
+    <Project Path="src/Services/GlAccounts/GlAccounts.Tests/GlAccounts.Tests.csproj" />
+  </Folder>
+</Solution>

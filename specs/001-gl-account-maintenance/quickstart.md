@@ -1,60 +1,231 @@
-# Quickstart: validating GL Account Maintenance and Inquiry
+# Quickstart: GL Account Maintenance and Inquiry
 
-A run and validation guide. It describes what to do once the project exists; no application code exists yet
-(repository baseline). Details of shapes live in `contracts/openapi.yaml` (Step 4) and `data-model.md`.
+**Feature**: 001-gl-account-maintenance
+**Date**: 2026-10-16
+
+This guide shows how to build, run, and verify the feature end-to-end using the stub data layer.
+It is not a full test suite — see `tasks.md` and the test project for that.
+
+---
 
 ## Prerequisites
 
-- .NET SDK 10.0.401 or later (`dotnet --version`).
-- This feature built through its tasks (`tasks.md`, Step 6). Solution layout: `plan.md`, "Source layout".
-- No database, secrets or external service are needed. Run on a local or non-production machine only, because no authentication or authorization is implemented (Q-001).
+- .NET 10 SDK
+- PowerShell 7+ (for gate scripts)
 
-## Build and test
+---
+
+## Build
 
 ```powershell
 dotnet restore
 dotnet build --no-restore -warnaserror
-dotnet test --no-build
-dotnet run scripts/sdlc/sdlc.cs -- gate specs/001-gl-account-maintenance traceability
 ```
 
-Expected: build with zero warnings, all tests pass, traceability lists every active AC as referenced by a test.
+Expected: exit 0, 0 warnings.
 
-## Run the service
+---
+
+## Run the API
 
 ```powershell
 dotnet run --project src/GlAccounts.Api
 ```
 
-The service starts with deterministic seed data. Restarting it resets all data.
+The API starts on `https://localhost:5001` (or the port in `launchSettings.json`).
 
-## Validation scenarios
+---
 
-Each scenario names the acceptance criteria it proves. Use `X-User-Id: demo-user` for audit attribution.
-Seed account IDs are fixed and listed in `StubData/` once built.
+## Validation Scenarios
 
-| # | Scenario | Expected | AC |
-|---|---|---|---|
-| 1 | Create an account with a valid full Account ID and Financial classification | 201, body contains segments and Account Type; audit entry exists | AC-GLA-001, 049 |
-| 2 | Create with an unknown segment value, or wrong separator | 400, message names the invalid segment and expected format | AC-GLA-002, 044 |
-| 3 | Create with an Account ID that already exists | 409 with the duplicate message | AC-GLA-003 |
-| 4 | Read an existing account, then an unknown one | 200 with `ETag`; then 404 | AC-GLA-004, 005 |
-| 5 | Update description and currency using the `ETag` as `If-Match` | 200; a later read shows new values; audit has before/after | AC-GLA-006, 007, 050 |
-| 6 | Update with a stale `If-Match`, then with Account ID or Account Type changed | 409 with stored account unchanged; 400 naming the permanent field | AC-GLA-056, 008, 045 |
-| 7 | Change status Active to Hold with a justification, then without one, then try to change a Template | 200; 400; 400 | AC-GLA-022, 023 |
-| 8 | Read posting eligibility for Active, Hold, Inactive, Template accounts | Eligible only for Active | AC-GLA-020, 021 |
-| 9 | Save a Financial account with a category outside the list; a Statistical account with a Balance Type | 400 field errors | AC-GLA-012, 013, 057 |
-| 10 | Delete a dependency-free account; delete the account with 10,001 posted transactions; delete accounts blocked by budget, allocation, group, or several blockers | 204; 409 with count and deactivation hint; 409 naming each blocker | AC-GLA-038..042 |
-| 11 | Request the period summary for an account with balances and for one without | Per-period and per-year balances with budget versions; empty list with 200 | AC-GLA-028, 029, 032 |
-| 12 | Filter and sort the period summary, then export `.xlsx` | Only matching rows in order; file has the same rows | AC-GLA-030, 031 |
-| 13 | Request transactions with default paging, a date range, then a drill-down and a CSV export | 50 items by default, filtered rows, entry detail, CSV matches filter | AC-GLA-033..036 |
-| 14 | Request transactions with `pageSize` above 200 | 400 | AC-GLA-037 |
-| 15 | Add two attributes, edit one, remove one; try a value that does not belong to the type | Stored and returned; 400 on the invalid value | AC-GLA-014..016 |
-| 16 | Save an account update carrying attribute changes where one is invalid | Nothing applied | AC-GLA-017, 018 |
-| 17 | List groups for an account in nested groups, one in no group, then export CSV | Hierarchy returned; empty list; CSV lists every group | AC-GLA-024, 025, 027 |
-| 18 | Search templates, create an account from a template, use a non-template as source | Matches only; new account copies settings with its own ID; 400 for non-template | AC-GLA-053..055 |
+All scenarios use the stub seed data defined in [`data-model.md`](data-model.md).
+Use `curl`, Postman, or any HTTP client. Replace `BASE` with `https://localhost:5001`.
 
-## Not covered (stub data)
+---
 
-Durability across restarts, real transactions, concurrency against a real database, migrations, and production
-performance are **not verified (stub data)**. Timing results describe the in-memory stub only.
+### SC-1: Create a valid account (AC-GLA-001)
+
+```
+POST BASE/api/gl/accounts
+Content-Type: application/json
+X-User-Id: test-user
+
+{
+  "accountId": "01-300-1000",
+  "description": "New Test Account",
+  "accountType": "Financial",
+  "category": "Asset",
+  "status": "Active",
+  "balanceType": "BalanceForward",
+  "normalBalance": "Debit",
+  "currencyId": "USD"
+}
+```
+
+**Expected**: `201 Created` with the new account in the body.
+
+---
+
+### SC-2: Reject duplicate account ID (AC-GLA-002)
+
+```
+POST BASE/api/gl/accounts
+(same payload as SC-1, same accountId "01-300-1000")
+```
+
+**Expected**: `409 Conflict` with an error message referencing the duplicate ID.
+
+---
+
+### SC-3: Reject invalid segment format (AC-GLA-003)
+
+```
+POST BASE/api/gl/accounts
+{ "accountId": "INVALID", ... }
+```
+
+**Expected**: `422 Unprocessable Entity` with expected format in the error body.
+
+---
+
+### SC-4: Retrieve an account (AC-GLA-005)
+
+```
+GET BASE/api/gl/accounts/01-100-1000
+```
+
+**Expected**: `200 OK` with full account record for "Cash Account".
+
+---
+
+### SC-5: Update editable fields (AC-GLA-005)
+
+```
+PUT BASE/api/gl/accounts/01-100-1000
+Content-Type: application/json
+X-User-Id: test-user
+
+{ "description": "Updated Cash Account" }
+```
+
+**Expected**: `200 OK`; description changed. AccountId and AccountType unchanged.
+
+---
+
+### SC-6: Reject permanent-field change (AC-GLA-004)
+
+```
+PUT BASE/api/gl/accounts/01-100-1000
+{ "accountType": "Statistical" }
+```
+
+**Expected**: `422 Unprocessable Entity`; permanent field change rejected.
+
+---
+
+### SC-7: Block deletion of account with transactions (AC-GLA-013)
+
+```
+DELETE BASE/api/gl/accounts/01-200-2000
+X-User-Id: test-user
+```
+
+**Expected**: `409 Conflict` with message stating number of transactions and suggesting deactivation.
+
+---
+
+### SC-8: Delete a clean account (AC-GLA-014)
+
+First create a clean account (SC-1), then:
+
+```
+DELETE BASE/api/gl/accounts/01-300-1000
+X-User-Id: test-user
+```
+
+**Expected**: `204 No Content`.
+
+---
+
+### SC-9: View period summary (AC-GLA-011)
+
+```
+GET BASE/api/gl/accounts/01-100-1000/period-summary
+```
+
+**Expected**: `200 OK` with 4 period balance records for FY2026.
+
+---
+
+### SC-10: View transaction history (AC-GLA-012)
+
+```
+GET BASE/api/gl/accounts/01-200-2000/transactions
+```
+
+**Expected**: `200 OK` with 3 posted transactions.
+
+---
+
+### SC-11: Assign attribute (AC-GLA-008)
+
+```
+POST BASE/api/gl/accounts/01-100-1000/attributes
+Content-Type: application/json
+X-User-Id: test-user
+
+{ "attributeTypeId": "REPORTING_UNIT", "attributeValueId": "NORTH_REGION" }
+```
+
+**Expected**: `201 Created`.
+
+---
+
+### SC-12: Audit log produced (AC-GLA-015)
+
+After SC-1 (create):
+
+```
+GET BASE/api/gl/accounts/01-300-1000/audit
+```
+
+**Expected**: `200 OK`; at least one audit entry with `changeType: Created`, `userId: test-user`.
+
+> **Note**: This endpoint is an optional convenience endpoint for test verification.
+> Implementations may expose it under a different path.
+
+---
+
+### SC-13: Copy from template (AC-GLA-017)
+
+```
+POST BASE/api/gl/accounts/01-100-5000/copy
+Content-Type: application/json
+X-User-Id: test-user
+
+{ "newAccountId": "01-100-9000", "description": "Copy of Template" }
+```
+
+**Expected**: `201 Created`; new account has same classification as the template; source account remains `Template` status.
+
+---
+
+## Run Unit Tests
+
+```powershell
+dotnet test --no-build --logger "console;verbosity=normal"
+```
+
+Expected: all tests pass, 0 failures.
+
+---
+
+## Gate Verification
+
+```powershell
+dotnet run scripts/sdlc/sdlc.cs -- gate specs/001-gl-account-maintenance specification
+dotnet run scripts/sdlc/sdlc.cs -- gate specs/001-gl-account-maintenance contract
+dotnet run scripts/sdlc/sdlc.cs -- gate specs/001-gl-account-maintenance traceability
+```
+
+All must exit 0 before the PR is raised.

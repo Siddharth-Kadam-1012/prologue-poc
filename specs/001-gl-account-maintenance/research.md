@@ -1,69 +1,109 @@
 # Research: GL Account Maintenance and Inquiry
 
-All technical unknowns were resolved from repository policy (`AGENTS.md`, `.bob/instructions/`) and the
-approved spec. Nothing here required external sources; library facts below must be confirmed by a successful
-restore when the slice that uses them is built.
+**Feature**: 001-gl-account-maintenance
+**Date**: 2026-10-16
+**Phase**: 0 — Pre-design research
 
-## R-01 Runtime and framework
+---
 
-- **Decision**: .NET 10, ASP.NET Core 10 minimal APIs, built-in OpenAPI support.
-- **Rationale**: `AGENTS.md` states .NET 10 as the target intent; SDK 10.0.401 is installed; `.bob/instructions/api-contracts.md` points to the built-in `Microsoft.AspNetCore.OpenApi`.
-- **Alternatives**: MVC controllers (heavier, no benefit for thin vertical-slice endpoints); .NET 8 (SDK 8.0.425 is also installed, but `AGENTS.md` says new projects target 10).
+## Stack Decisions
 
-## R-02 Data layer
+### Language / Runtime
 
-- **Decision**: in-memory, thread-safe stub stores seeded with synthetic data, behind small feature-specific interfaces.
-- **Rationale**: `AGENTS.md` and `.bob/instructions/dotnet.md` forbid a database, ORM, migrations or connection strings in this phase. Spec A-001, Q-008, Q-014.
-- **Alternatives**: SQLite or Testcontainers (explicitly forbidden by `testing.md` in this phase); generic `IRepository<T>` (forbidden by `vertical-slices.md`).
+| Decision | .NET 10 / C# 13, ASP.NET Core 10 |
+|---|---|
+| Rationale | AGENTS.md target runtime; repo policy |
+| Alternatives considered | .NET 8 LTS — rejected (AGENTS.md specifies .NET 10) |
 
-## R-03 Validation approach
+### API Style
 
-- **Decision**: plain validator classes per slice returning field-keyed errors mapped to `HttpValidationProblemDetails`.
-- **Rationale**: no validation library exists in the repository, and `dotnet.md` says to use whichever is already present; the rules (segment format, category-by-type, currency list, justification length) are few and specific. Avoids a new dependency.
-- **Alternatives**: FluentValidation (new dependency, no clear gain here); Data Annotations (cannot express cross-field rules such as category-by-type or statistical constraints cleanly).
+| Decision | ASP.NET Core 10 Minimal API (endpoint-per-feature) |
+|---|---|
+| Rationale | Matches the existing `src/GlAccounts.Api` pattern before the reset; aligns with vertical-slice convention |
+| Alternatives considered | Controller-based MVC — rejected (heavier, less slice-friendly) |
 
-## R-04 Optimistic concurrency
+### Validation
 
-- **Decision**: `ETag` returned on account reads, `If-Match` required on update, stale value returns 409.
-- **Rationale**: Q-013 requires optimistic concurrency with a conflict response; `api-contracts.md` asks for the ETag/If-Match pattern. Using 409 matches the spec wording ("conflict response"); HTTP convention would use 412, which can be chosen at the contract stage if preferred.
-- **Alternatives**: version field in the body (works, but hides the concurrency token from HTTP caches and tooling); last-write-wins (rejected by Q-013).
+| Decision | FluentValidation |
+|---|---|
+| Rationale | Already used in the prior implementation (`CreateAccountValidator.cs`); `.bob/instructions/dotnet.md` says use whatever is already in project |
+| Alternatives considered | Data Annotations — less expressive for cross-field rules (Category vs. Type); rejected |
 
-## R-05 Excel export
+### Data Layer
 
-- **Decision**: ClosedXML for the single `.xlsx` export (period summary).
-- **Rationale**: needed only for REQ-GLA-019. ClosedXML is MIT licensed and builds on the OpenXML SDK with a small API.
-- **Alternatives**: EPPlus (commercial license terms since version 5, avoided); raw `DocumentFormat.OpenXml` (no extra abstraction, but more code for a simple table); CSV with an `.xls` name (misleading, rejected).
-- **Open check**: confirm the package restores and its current license when slice S05 is built; if it cannot, fall back to `DocumentFormat.OpenXml` and record the change in the plan.
+| Decision | In-memory stub stores — interfaces in `Application`, implementations in `Infrastructure` |
+|---|---|
+| Rationale | AGENTS.md mandates stub data for this phase; Clean Architecture port/adapter pattern |
+| Alternatives considered | EF Core InMemory — rejected (over-engineering for stub phase; introduces ORM dependency) |
 
-## R-06 CSV export
+### Project Structure
 
-- **Decision**: hand-written CSV writer with proper quoting and a header row, no package.
-- **Rationale**: two simple tables (groups, transactions). Q-009. An empty result returns headers only (spec edge cases).
-- **Alternatives**: CsvHelper (new dependency for trivial output).
+| Decision | Six-project Clean Architecture: `GlAccounts.Api`, `GlAccounts.Application`, `GlAccounts.Domain`, `GlAccounts.Infrastructure`, `GlAccounts.Contracts`, `GlAccounts.Tests` |
+|---|---|
+| Rationale | Mandated by `AGENTS.md` and `.bob/instructions/dotnet.md` |
+| Alternatives considered | Single-project — rejected (ADR required; not authorised) |
 
-## R-07 OpenAPI source of truth
+### Testing
 
-- **Decision**: design-time first (user choice, recorded in ADR-001): the reviewed `specs/001-gl-account-maintenance/contracts/openapi.yaml` is authoritative; implementation must conform; drift is checked against the generated document.
-- **Rationale**: constitution principle II; reduces drift risk; fits the approval gates.
-- **Alternatives**: code-first (contract follows code; risk of unreviewed API change).
+| Decision | xUnit + FluentAssertions for unit and integration tests |
+|---|---|
+| Rationale | AGENTS.md preferred test runner; standard .NET ecosystem choice |
+| Alternatives considered | NUnit — only if already present; it is not |
 
-## R-08 Test stack
+### Audit Trail (US-AM-011)
 
-- **Decision**: xUnit, `WebApplicationFactory<Program>`, fresh seeded store per test. Playwright deferred until a frontend exists.
-- **Rationale**: `testing.md`. No NUnit present. No frontend yet (ADR-002 undecided).
+| Decision | In-memory `AuditStore` implementing `IAuditStore` port; appends immutable `AuditEntry` records |
+|---|---|
+| Rationale | Authorization is out of scope (Q-001); only the logging side of US-AM-011 is implemented; simple append-only list in Infrastructure |
+| Alternatives considered | Event sourcing — far too heavy for stub phase; rejected |
 
-## R-09 Audit trail
+### Concurrent Update Handling (Q-002)
 
-- **Decision**: append-only audit store interface with an in-memory implementation; no public read operation; verified by tests through the store interface.
-- **Rationale**: Q-012; NFR-GLA-007; A-008 (unverified user identifier from `X-User-Id`).
-- **Alternatives**: structured logging as the audit trail (logs are not tamper-evident or queryable by tests, and `dotnet.md` says not to log PII).
+| Decision | Last-write-wins; no ETag / If-Match |
+|---|---|
+| Rationale | Confirmed by Jaymin Trivedi; simplest model for stub data; ETag deferred |
+| Alternatives considered | Optimistic locking (ETag + 412) — deferred to future phase per spec clarification |
 
-## R-10 Frontend and live validation
+### Segment Format Validation
 
-- **Decision**: no frontend choice is made in this plan (ADR-002 undecided; Q-017 requires an ADR before UI implementation). Live as-you-type segment validation was dropped by the user at the contract stage, so no validation-only endpoint is added and NFR-GLA-006 is relaxed (spec A-007).
-- **Rationale**: avoids a spec change for a new operation and keeps the contract aligned with API-GLA-001..016.
-- **Next step**: the frontend choice is raised at the UX stage (plan.md, Open decisions 1).
+| Decision | `ISegmentFormatStore` port in Application; `InMemorySegmentFormatStore` stub seeded with a 3-segment format (`CC-DEPT-NATURAL`, e.g. `01-100-1000`) |
+|---|---|
+| Rationale | External dependency US-SF-001 not in scope; pre-seeded stub required; stub validates Account ID via regex derived from segment format |
+| Alternatives considered | Skip validation in stub — rejected; BR-GLA-001/002 are P1 requirements |
 
-## Result
+---
 
-No remaining unknowns that block the architecture stage. Items marked "Open check" or "Open decisions" are scheduled for later stages and do not change the architecture.
+## Key Findings for Data Model
+
+- `GLAccount`: 10 fields; AccountId and AccountType are immutable after creation.
+- `AccountAttribute`: FK to AccountId + AttributeTypeId + AttributeValueId; many-per-account.
+- `PeriodBalance`: FK to AccountId; keyed by FiscalYear + FiscalPeriod + BudgetVersion.
+- `GLTransaction`: FK to AccountId; read-only from this feature (transactions come from journal module).
+- `AuditEntry`: append-only; never modified.
+- `AccountGroup`: read-only from this feature; managed by a separate feature.
+
+---
+
+## Key Findings for API Contract
+
+Endpoints identified from PRD non-functional ACs and requirements:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | /api/gl/accounts | Create account (US-AM-001) |
+| GET | /api/gl/accounts/{id} | Retrieve account (US-AM-001, US-AM-002) |
+| PUT | /api/gl/accounts/{id} | Update editable fields (US-AM-002, US-AM-003, US-AM-005) |
+| DELETE | /api/gl/accounts/{id} | Delete account with dependency check (US-AM-009) |
+| GET | /api/gl/accounts/{id}/groups | Account group membership (US-AM-006) |
+| GET | /api/gl/accounts/{id}/period-summary | Period balances (US-AM-007) |
+| GET | /api/gl/accounts/{id}/transactions | Transaction history (US-AM-008) |
+| POST | /api/gl/accounts/{id}/attributes | Assign attribute (US-AM-004) |
+| PUT | /api/gl/accounts/{id}/attributes/{attrId} | Update attribute (US-AM-004) |
+| DELETE | /api/gl/accounts/{id}/attributes/{attrId} | Remove attribute (US-AM-004) |
+| POST | /api/gl/accounts/{id}/copy | Copy from template (US-AM-012) |
+
+---
+
+## Resolved NEEDS CLARIFICATION Items
+
+All items resolved — none remain. See `spec.md` Clarifications section.

@@ -41,8 +41,7 @@
 
 ## Clean Architecture — Project Structure (MANDATORY)
 
-Every new backend service **must** follow the six-project layout defined in
-`docs/architecture/Microservices_Target_Solution_Structure.md`. Do not create a
+Every new backend service **must** follow the six-project layout below. Do not create a
 single-project service unless an ADR explicitly authorises it.
 
 ### Six-project layout
@@ -61,6 +60,104 @@ src/Services/<ServiceName>/
 The service folder sits under `src/Services/`. For example, `GlAccounts` lives at
 `src/Services/GlAccounts/`. Frontend projects (Angular, React) live under `src/` directly,
 not inside a service folder.
+
+### Detailed folder structure per project
+
+```
+src/Services/<ServiceName>/
+│
+├── <ServiceName>.Api/
+│   ├── BackgroundServices/
+│   │   └── Consumers/
+│   │       └── <EventName>Consumer.cs
+│   ├── Controllers/
+│   │   └── <Resource>Controller.cs
+│   ├── Middlewares/
+│   │   └── ExceptionHandlingMiddleware.cs
+│   ├── Filters/
+│   │   └── ValidationFilter.cs
+│   ├── Extensions/
+│   │   └── WebApplicationExtensions.cs
+│   ├── Properties/
+│   │   └── launchSettings.json
+│   ├── appsettings.json
+│   ├── appsettings.Development.json
+│   ├── Program.cs
+│   └── <ServiceName>.Api.csproj
+│
+├── <ServiceName>.Application/
+│   ├── Abstractions/
+│   │   ├── Messaging/
+│   │   │   └── IEventPublisher.cs
+│   │   ├── Persistence/
+│   │   │   └── IRepository.cs
+│   │   └── Services/
+│   │       └── I<UseCase>Service.cs
+│   ├── Contracts/
+│   │   ├── Requests/
+│   │   │   └── <UseCase>Request.cs
+│   │   └── Responses/
+│   │       └── <UseCase>Response.cs
+│   ├── Events/
+│   │   ├── Integration/
+│   │   │   └── <IntegrationEvent>.cs
+│   │   └── Internal/
+│   │       └── <DomainEvent>.cs
+│   ├── UseCases/
+│   │   └── <UseCaseName>/
+│   │       ├── <UseCase>Command.cs
+│   │       ├── <UseCase>Handler.cs
+│   │       └── <UseCase>Validator.cs
+│   ├── Services/
+│   │   └── <UseCase>Service.cs
+│   ├── DependencyInjection/
+│   │   └── ApplicationServiceCollectionExtensions.cs
+│   └── <ServiceName>.Application.csproj
+│
+├── <ServiceName>.Domain/
+│   ├── Entities/
+│   ├── ValueObjects/
+│   ├── Events/
+│   │   └── DomainEvent.cs
+│   ├── Enums/
+│   ├── Exceptions/
+│   ├── Specifications/
+│   └── <ServiceName>.Domain.csproj
+│
+├── <ServiceName>.Infrastructure/
+│   ├── Persistence/
+│   │   ├── DbContexts/
+│   │   │   └── <ServiceName>DbContext.cs
+│   │   ├── Configurations/
+│   │   │   └── <Entity>Configuration.cs
+│   │   └── Repositories/
+│   │       └── <Repository>Repository.cs
+│   ├── Messaging/
+│   │   └── <Broker>/
+│   │       ├── <Broker>EventPublisher.cs
+│   │       └── <Broker>Options.cs
+│   ├── Identity/
+│   │   └── AuthenticationService.cs
+│   ├── Observability/
+│   │   └── TelemetryExtensions.cs
+│   ├── DependencyInjection/
+│   │   └── InfrastructureServiceCollectionExtensions.cs
+│   └── <ServiceName>.Infrastructure.csproj
+│
+├── <ServiceName>.Contracts/
+│   └── Events/
+│       └── <IntegrationEvent>.v1.json
+│
+├── <ServiceName>.Tests/
+│   ├── Unit/
+│   │   ├── Application/
+│   │   ├── Domain/
+│   │   └── Infrastructure/
+│   ├── Integration/
+│   └── <ServiceName>.Tests.csproj
+│
+└── <ServiceName>.slnx
+```
 
 ### Dependency rules (enforced by project references)
 
@@ -88,7 +185,7 @@ Api  ──►  Application  ──►  Domain
 | `Api` | Controllers / Minimal API endpoints, background consumers, middleware, filters, `Program.cs`, `appsettings.json` |
 | `Application` | Use case handlers (`<UseCase>Handler.cs`), commands/queries (`<UseCase>Command.cs`), validators (`<UseCase>Validator.cs`), request/response DTOs, port interfaces (`IRepository`, `IEventPublisher`, `I<UseCase>Service`), integration + internal events |
 | `Domain` | Entities, value objects, domain events, enums, domain exceptions, specifications |
-| `Infrastructure` | EF Core `DbContext`, repository implementations, messaging publisher/consumer, identity/auth service, telemetry extensions, DI registration |
+| `Infrastructure` | EF Core `DbContext`, repository implementations, messaging publisher/consumer, identity/auth service, DI registration; **must call `Shared.Observability.AddObservability()` for telemetry — never duplicate OTel packages locally** |
 | `Contracts` | Versioned integration event schemas (e.g. `<IntegrationEvent>.v1.json`) shared between services |
 | `Tests` | `Unit/Application/`, `Unit/Domain/`, `Unit/Infrastructure/`, `Integration/` |
 
@@ -97,6 +194,29 @@ Api  ──►  Application  ──►  Domain
 - **Port** = an interface declared in `Application/Abstractions/` (e.g. `IAccountStore`, `IEventPublisher`).
 - **Adapter** = a class in `Infrastructure/` that implements the port (e.g. `InMemoryAccountStore`, `SqlAccountRepository`).
 - The `Domain` and `Application` layers must never reference a concrete adapter class.
+
+### Shared projects (one-time setup, cross-service)
+
+Cross-service infrastructure concerns live under `src/Shared/`.
+These projects are built once. Adding a new microservice never requires changes inside them.
+
+| Project | Location | Purpose |
+|---|---|---|
+| `Shared.Observability` | `src/Shared/Shared.Observability/` | OpenTelemetry SDK, OTLP exporter, ASP.NET Core + runtime instrumentation |
+
+#### Every new service Infrastructure project must:
+1. Add `<ProjectReference Include="../../../../Shared/Shared.Observability/Shared.Observability.csproj" />`
+   to `<ServiceName>.Infrastructure.csproj`
+2. Call `services.AddObservability(configuration, "<ServiceName>")` inside
+   `InfrastructureServiceCollectionExtensions`
+3. Add `"Observability": { "OtlpEndpoint": "http://localhost:4317" }` to `appsettings.Development.json`
+4. Pass `builder.Configuration` to `Add<ServiceName>Infrastructure(...)` in `Program.cs`
+
+#### Rules:
+- Shared projects contain only infrastructure/technical concerns — never business logic.
+- Only the `.Infrastructure` project of a service may reference a shared project.
+- `Domain` and `Application` layers must never reference any shared project.
+- Never duplicate OTel NuGet packages in a service `.csproj` — they live only in `Shared.Observability`.
 
 ---
 

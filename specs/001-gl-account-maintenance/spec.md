@@ -383,7 +383,7 @@ An Accountant selects an existing Template-status account, copies all settings t
 - **US-SF-001** (Segment Format): Segment format definition must be available via an in-memory stub at startup.
 - **US-SV-001** (Segment Value Lists): Segment value lists must be available via an in-memory stub at startup.
 - **Auth context**: User identity and role are read from a stub context (no real authentication provider).
-- **Backend architecture**: Must follow the Clean Architecture six-project structure per `AGENTS.md` and `docs/architecture/Microservices_Target_Solution_Structure.md`.
+- **Backend architecture**: Must follow the Clean Architecture six-project structure defined in `AGENTS.md` and `.bob/instructions/dotnet.md`.
 - **Frontend**: Angular + TypeScript (confirmed Q-003). Angular app communicates with the backend via the REST API defined in `contracts/openapi.yaml`. No SSR in this phase.
 
 ---
